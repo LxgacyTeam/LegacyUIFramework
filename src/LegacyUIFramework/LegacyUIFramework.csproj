@@ -1,0 +1,59 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>LegacyUIFramework</AssemblyName>
+    <RootNamespace>BigCityLegacy.UI</RootNamespace>
+	<VersionPrefix>1.0.5</VersionPrefix>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+	<GameDir Condition="'$(GameDir)' == ''">..\..\..\..\..\prod_game</GameDir>
+    <ManagedDir>$(GameDir)\game_Data\Managed</ManagedDir>
+    <BepInExDir>$(GameDir)\BepInEx\core</BepInExDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <NoWarn>1701;1702;0618;0649</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <NoWarn>1701;1702;0618;0649</NoWarn>
+  </PropertyGroup>
+
+  <Target Name="ValidateGameDir" BeforeTargets="PrepareForBuild">
+	  <Error Condition="'$(GameDir)' == '' Or !Exists('$(GameDir)')"
+			 Text="&#xD;&#xA;&gt; &gt; &gt; &gt; &gt; &gt; Invalid GameDir: '$(GameDir)' &lt; &lt; &lt; &lt; &lt; &lt; &#xD;&#xA;&#xD;&#xA;The project requires access to the game's Unity assemblies.&#xD;&#xA;Set &lt;GameDir&gt; in the .csproj file or specify it on the command line:&#xD;&#xA;dotnet build -p:GameDir=&quot;path\to\game&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+	<Reference Include="UnityEngine.UIModule">
+		<HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath>
+		<Private>false</Private>
+	</Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
