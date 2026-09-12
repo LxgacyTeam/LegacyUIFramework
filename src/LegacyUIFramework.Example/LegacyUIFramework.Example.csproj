@@ -7,7 +7,7 @@
     <RootNamespace>BigCityLegacy.UI.Example</RootNamespace>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildProjectDirectory)\..\..\..\prod_game</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">..\..\..\..\..\prod_game</GameDir>
     <ManagedDir>$(GameDir)\game_Data\Managed</ManagedDir>
     <BepInExDir>$(GameDir)\BepInEx\core</BepInExDir>
     <CopyToPlugins Condition="'$(CopyToPlugins)' == ''">false</CopyToPlugins>
