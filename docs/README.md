@@ -1,5 +1,7 @@
 # LegacyUIFramework
 
+### [README на Русском](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/README_RU.md)
+---
 A small standalone IMGUI library for BepInEx plugins. It makes it easy to create draggable windows with styled UI elements.
 **Developed specifically for the BigCityLegacy project**.
 
