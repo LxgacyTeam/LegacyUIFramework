@@ -3,7 +3,10 @@
 A small standalone IMGUI library for BepInEx plugins. It makes it easy to create draggable windows with styled UI elements.
 **Developed specifically for the BigCityLegacy project**.
 
-### Full usage documentation is available in the Wiki section
+### Full usage documentation is available in the [Wiki section](https://github.com/LxgacyTeam/LegacyUIFramework/wiki/Documentation-on-English)
+
+
+![preview image](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/preview.png?raw=true)
 
 ---
 
@@ -12,6 +15,8 @@ A small standalone IMGUI library for BepInEx plugins. It makes it easy to create
 * Quickly create draggable windows with flexible configuration for size, behavior, opacity, and more
 * Create styled UI elements such as buttons, checkboxes, sliders, input fields, and more
 * Theme support, applied globally or to individual elements or groups of elements
+
+![themes preview image](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/themes-preview.png?raw=true)
 
 ## Usage:
 
