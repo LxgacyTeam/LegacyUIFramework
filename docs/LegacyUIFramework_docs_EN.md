@@ -1,33 +1,36 @@
 # LegacyUIFramework
 
-`LegacyUIFramework.dll` is a small standalone IMGUI framework for BigCityLegacy plugins.
-It contains its the visual style, also reusable helpers for draggable windows and common UI controls.
+`LegacyUIFramework.dll` is a small standalone IMGUI library for BepInEx 5 plugins.
+It provides its own visual style as well as reusable helpers for draggable windows and basic UI elements.
 
-The framework can be built and copied as a separate DLL, then referenced by any plugin that wants to draw UI in the same style.
+> [!NOTE]
+> The framework is developed as part of the BigCityLegacy project and is intended for use both by the project itself and by additional dependent plugins.
+> Using LegacyUIFramework with third-party games is possible, but full compatibility is not guaranteed.
+
+The framework can be built and copied as a standalone DLL, then referenced from any plugin that needs to render its interface in a consistent style.
 
 ## Projects
 
 ```text
-LegacyUIFramework.csproj
+src/LegacyUIFramework/LegacyUIFramework.csproj
 src/LegacyUIFramework.Example/LegacyUIFramework.Example.csproj
 ```
 
 Build the framework:
 
 ```bash
-dotnet build .\LegacyUIFramework.sln -c Debug
+dotnet build .\LegacyUIFramework.csproj -c Debug -p:GameDir="path\to\game\dir"
 ```
 
-Build and copy the example plugin into BepInEx:
+Build the example plugin and copy it to BepInEx:
 
 ```bash
-dotnet build .\src\LegacyUIFramework.Example\LegacyUIFramework.Example.sln -c Debug -p:GameDir="path\to\game\dir" -p:CopyToPlugins=true
+dotnet build .\src\LegacyUIFramework.Example\LegacyUIFramework.Example.csproj -c Debug -p:GameDir="path\to\game\dir" -p:CopyToPlugins=true
 ```
 
+For your own plugins, copy `LegacyUIFramework.dll` next to the plugin DLL or into the shared BigCityLegacy modules folder loaded by BepInEx.
 
-For your plugins, copy `LegacyUIFramework.dll` next to the plugin DLL or to a shared BigCityLegacy modules folder loaded by BepInEx.
-
-For background input blocking, the framework uses `0Harmony.dll` from `BepInEx/core` and `UnityEngine.UI.dll` + `UnityEngine.UIModule.dll` from `game_Data/Managed`. No extra DLLs need to be copied when the plugin runs in the usual BigCityLegacy BepInEx environment.
+For background input blocking, the framework uses `0Harmony.dll` from `BepInEx/core` as well as `UnityEngine.UI.dll` and `UnityEngine.UIModule.dll`.
 
 ## Namespaces
 
@@ -39,13 +42,13 @@ Main public classes:
 
 ```text
 LegacyUI                 static facade for controls and styles
-LegacyUITheme            theme object with palette, textures and styles
-LegacyUIThemeScope       temporary scoped theme switch for groups of controls
+LegacyUITheme            theme object containing palette, textures, and styles
+LegacyUIThemeScope       temporarily switches the theme for a group of controls
 LegacyUIPalette          editable color palette
 LegacyUIWindow           draggable styled window
 LegacyUIWindowOptions    window modifiers
-LegacyUIGuiScope         saves/restores Unity IMGUI global state
-LegacyUILayout           tiny manual layout helper
+LegacyUIGuiScope         saves/restores the global Unity IMGUI state
+LegacyUILayout           small helper for manual fixed-layout positioning
 ```
 
 ## Minimal window
@@ -134,21 +137,21 @@ new LegacyUIWindowOptions
 };
 ```
 
-When `FadeWhileDragging` is enabled, the window and all child IMGUI elements are drawn with reduced alpha while the title bar is being dragged.
+When `FadeWhileDragging` is enabled, the window and all child IMGUI elements are rendered with reduced opacity while the window is being dragged by its header.
 
-`BackgroundAlpha` changes only the window background opacity. If it is `null`, the opacity from the current theme is used.
+`BackgroundAlpha` changes only the opacity of the window background. If the value is `null`, the opacity from the current theme is used.
 
-`Theme` is optional. If it is set, only this window and its content are drawn with that theme. The global framework theme is not changed.
+`Theme` is optional. When specified, only this window and its contents are rendered using that theme. The framework's global theme is not changed.
 
-`InputBlockMode` controls how the window consumes mouse events after its own controls are drawn:
+`InputBlockMode` controls how the window consumes mouse events after rendering its own elements:
 
 ```text
 None   = 0 — do not block background clicks
-Window = 1 — block clicks only inside the window rectangle; this is the default
-Screen = 2 — block mouse clicks anywhere on the screen while the window is visible
+Window = 1 — block clicks only inside the window rectangle; default mode
+Screen = 2 — block mouse clicks across the entire screen while the window is open
 ```
 
-When `PlayerPrefsKey` is set, the framework stores window position, size and visibility:
+If `PlayerPrefsKey` is specified, the framework saves the window position, size, and visibility:
 
 ```text
 <key>.x
@@ -160,7 +163,7 @@ When `PlayerPrefsKey` is set, the framework stores window position, size and vis
 
 ## Controls
 
-The framework includes wrappers for the common styled controls:
+The framework provides wrappers for commonly used styled controls:
 
 ```csharp
 LegacyUI.Panel(rect);
@@ -187,18 +190,18 @@ float sx = LegacyUI.HorizontalScrollbar(rect, sx, 20f, 0f, 100f);
 float sy = LegacyUI.VerticalScrollbar(rect, sy, 20f, 0f, 100f);
 ```
 
-The slider and scrollbar helpers are custom-drawn and do not depend on mutating `GUI.skin`, so several plugins can safely use the framework without fighting over global skin state.
+The slider and scrollbar helpers are rendered manually and do not depend on changes to `GUI.skin`, allowing multiple plugins to safely use the framework without conflicting over the global skin state.
 
 ## Styles and theme
 
-Access default styles directly when needed:
+If needed, you can access framework styles directly:
 
 ```csharp
 GUI.Label(rect, "Custom label", LegacyUI.Styles.Label);
 GUI.Button(rect, "Custom", LegacyUI.Styles.Button);
 ```
 
-Available style properties include:
+Available style properties:
 
 ```text
 Window
@@ -225,7 +228,7 @@ VerticalScrollbar
 VerticalScrollbarThumb
 ```
 
-To customize the colors globally for one plugin:
+To configure colors globally for a single plugin:
 
 ```csharp
 LegacyUIPalette palette = new LegacyUIPalette();
@@ -234,7 +237,7 @@ palette.WindowBackground = new Color(0.04f, 0.04f, 0.05f, 0.88f);
 LegacyUI.SetTheme(new LegacyUITheme(palette));
 ```
 
-The global theme is still useful as the default for one plugin, but you can also use temporary themes for individual windows, groups or single controls without changing global state.
+The global theme is still convenient as a plugin-wide default, but temporary themes can also be used for individual windows, groups of elements, or single controls without changing global state.
 
 Create reusable themes once, for example in `Awake()`:
 
@@ -245,9 +248,9 @@ bluePalette.WindowBackground = new Color(0.04f, 0.05f, 0.08f, 0.88f);
 LegacyUITheme blueTheme = new LegacyUITheme(bluePalette);
 ```
 
-`LegacyUITheme` is safe to create in `Awake()` or other non-`OnGUI` initialization code. Textures and styles are created lazily when they are first needed by actual draw calls. If you mutate a palette after the theme has already been drawn, call `theme.Invalidate()` or replace it through `theme.SetPalette(...)`.
+`LegacyUITheme` can safely be created in `Awake()` or other initialization code outside `OnGUI`. Textures and styles are created lazily on first actual rendering. If the palette is changed after the theme has already been rendered, call `theme.Invalidate()` or replace the palette using `theme.SetPalette(...)`.
 
-Use a theme for one whole window:
+Using a theme for an entire window:
 
 ```csharp
 window = new LegacyUIWindow(
@@ -260,7 +263,7 @@ window = new LegacyUIWindow(
     });
 ```
 
-Use a scoped theme for a group of controls:
+Using a theme for a group of controls:
 
 ```csharp
 using (LegacyUI.WithTheme(blueTheme))
@@ -271,7 +274,7 @@ using (LegacyUI.WithTheme(blueTheme))
 }
 ```
 
-Or pass the theme only to one control:
+Or applying a theme to a single element only:
 
 ```csharp
 LegacyUI.Button(rect, "Blue button", blueTheme);
@@ -279,11 +282,11 @@ LegacyUI.HorizontalSlider(rect, value, 0f, 1f, blueTheme);
 LegacyUI.Panel(rect, 0.70f, blueTheme);
 ```
 
-Scoped themes are stack-based, so nested themes are allowed. Dispose the scope inside the same `OnGUI` call where it was created.
+Scoped themes work as a stack, so nested themes are supported. Dispose the scope within the same `OnGUI` call in which it was created.
 
 ## Example plugin
 
-`LegacyUIFramework.Example` draws a window with:
+`LegacyUIFramework.Example` renders a window containing the following elements:
 
 ```text
 TextField
@@ -301,11 +304,11 @@ VerticalScrollbar
 Close button
 Drag fade modifier
 Input block mode switcher
-Theme scope / per-window / per-control theme examples
+Examples of themes for a window, a group, and a single element
 ```
 
-This plugin is only a usage sample. It is not required by the framework.
+This plugin exists only as a usage example. It is not required for the framework to function.
 
 ## Integration rule for BigCityLegacy
 
-Do not move large optional UI helpers back into the main BigCityLegacy plugin. New UI-heavy plugins should reference `LegacyUIFramework.dll` and keep their own feature logic in separate assemblies.
+Do not move large optional UI helpers back into the main BigCityLegacy plugin. New plugins with substantial UI should reference `LegacyUIFramework.dll` and keep their feature logic in separate assemblies.

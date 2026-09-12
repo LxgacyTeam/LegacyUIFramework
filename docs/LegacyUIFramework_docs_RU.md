@@ -1,32 +1,36 @@
 # LegacyUIFramework
 
-`LegacyUIFramework.dll` — это небольшая отдельная IMGUI-библиотека для плагинов BigCityLegacy.
+`LegacyUIFramework.dll` — это небольшая отдельная IMGUI-библиотека для плагинов BepInEx 5.
 Она содержит собственный визуальный стиль, а также переиспользуемые helpers для перетаскиваемых окон и базовых UI-элементов.
+
+> [!NOTE]
+> Фреймворк разрабатывается в рамках проекта BigCityLegacy и подразумевает использование как в нем самом, так и в дополнительных зависимых плагинах.
+> Использование LegacyUIFramework для сторонних игр возможно, но не гарантирует полную совместимость.
 
 Framework можно собрать и скопировать как отдельную DLL, а затем подключать из любого плагина, которому нужно рисовать интерфейс в едином стиле.
 
 ## Проекты
 
 ```text
-LegacyUIFramework.csproj
+src/LegacyUIFramework/LegacyUIFramework.csproj
 src/LegacyUIFramework.Example/LegacyUIFramework.Example.csproj
 ```
 
 Сборка framework:
 
 ```bash
-dotnet build .\LegacyUIFramework.sln -c Debug
+dotnet build .\LegacyUIFramework.csproj -c Debug -p:GameDir="path\to\game\dir"
 ```
 
 Сборка и копирование example-плагина в BepInEx:
 
 ```bash
-dotnet build .\src\LegacyUIFramework.Example\LegacyUIFramework.Example.sln -c Debug -p:GameDir="path\to\game\dir" -p:CopyToPlugins=true
+dotnet build .\src\LegacyUIFramework.Example\LegacyUIFramework.Example.csproj -c Debug -p:GameDir="path\to\game\dir" -p:CopyToPlugins=true
 ```
 
 Для своих плагинов скопируйте `LegacyUIFramework.dll` рядом с DLL плагина или в общую папку модулей BigCityLegacy, которую загружает BepInEx.
 
-Для режима блокировки фонового ввода framework использует `0Harmony.dll` из `BepInEx/core` и `UnityEngine.UI.dll` + `UnityEngine.UIModule.dll` из `game_Data/Managed`. Дополнительные DLL копировать не нужно, если плагин работает внутри обычного BepInEx-окружения BigCityLegacy.
+Для режима блокировки фонового ввода framework использует `0Harmony.dll` из `BepInEx/core` и `UnityEngine.UI.dll` + `UnityEngine.UIModule.dll`. 
 
 ## Namespaces
 
