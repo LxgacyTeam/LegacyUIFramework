@@ -12,6 +12,7 @@ namespace BigCityLegacy.UI
     {
         private static LegacyUITheme theme;
         private static readonly List<LegacyUITheme> themeStack = new List<LegacyUITheme>();
+        private static readonly List<LegacyUIContentTracker> contentTrackerStack = new List<LegacyUIContentTracker>();
 
         public static string Version = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
@@ -119,8 +120,45 @@ namespace BigCityLegacy.UI
             }
         }
 
+        internal static void RegisterElementRect(Rect rect)
+        {
+            if (contentTrackerStack.Count == 0)
+                return;
+
+            contentTrackerStack[contentTrackerStack.Count - 1].Include(rect);
+        }
+
+        internal static void PushContentTracker(LegacyUIContentTracker tracker)
+        {
+            if (tracker != null)
+                contentTrackerStack.Add(tracker);
+        }
+
+        internal static void PopContentTracker(LegacyUIContentTracker tracker)
+        {
+            if (tracker == null || contentTrackerStack.Count == 0)
+                return;
+
+            int last = contentTrackerStack.Count - 1;
+            if (ReferenceEquals(contentTrackerStack[last], tracker))
+            {
+                contentTrackerStack.RemoveAt(last);
+                return;
+            }
+
+            for (int i = last; i >= 0; i--)
+            {
+                if (ReferenceEquals(contentTrackerStack[i], tracker))
+                {
+                    contentTrackerStack.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+
         public static void Panel(Rect rect, float? backgroundAlpha = null)
         {
+            RegisterElementRect(rect);
             if (backgroundAlpha.HasValue)
                 DrawPanelBackground(rect, Mathf.Clamp01(backgroundAlpha.Value));
             else
@@ -163,6 +201,7 @@ namespace BigCityLegacy.UI
 
         public static void DrawBorder(Rect rect, int width = 1)
         {
+            RegisterElementRect(rect);
             if (width <= 0) return;
             Texture2D tex = Textures.Border;
             GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, width), tex);
@@ -181,6 +220,7 @@ namespace BigCityLegacy.UI
 
         public static void Separator(Rect rect)
         {
+            RegisterElementRect(rect);
             GUI.DrawTexture(rect, Textures.Border);
         }
 
@@ -194,6 +234,7 @@ namespace BigCityLegacy.UI
 
         public static void Label(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             GUI.Label(rect, text ?? string.Empty, Styles.Label);
         }
 
@@ -207,6 +248,7 @@ namespace BigCityLegacy.UI
 
         public static void Title(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             GUI.Label(rect, text ?? string.Empty, Styles.Title);
         }
 
@@ -220,6 +262,7 @@ namespace BigCityLegacy.UI
 
         public static void MiniHint(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             GUI.Label(rect, text ?? string.Empty, Styles.MiniHint);
         }
 
@@ -233,6 +276,7 @@ namespace BigCityLegacy.UI
 
         public static void HintBox(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             GUI.Box(rect, string.Empty, Styles.Hint);
             GUI.Label(rect, text ?? string.Empty, Styles.Hint);
             DrawBorder(rect);
@@ -248,6 +292,7 @@ namespace BigCityLegacy.UI
 
         public static void HintBoxAlt(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             GUI.Box(rect, string.Empty, Styles.HintAlt);
             GUI.Label(rect, text ?? string.Empty, Styles.HintAlt);
             DrawBorder(rect);
@@ -263,6 +308,7 @@ namespace BigCityLegacy.UI
 
         public static void Status(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             GUI.Label(rect, text ?? string.Empty, Styles.Status);
         }
 
@@ -276,6 +322,7 @@ namespace BigCityLegacy.UI
 
         public static string TextField(Rect rect, string value)
         {
+            RegisterElementRect(rect);
             return GUI.TextField(rect, value ?? string.Empty, Styles.TextField);
         }
 
@@ -289,6 +336,7 @@ namespace BigCityLegacy.UI
 
         public static string TextArea(Rect rect, string value)
         {
+            RegisterElementRect(rect);
             return GUI.TextArea(rect, value ?? string.Empty, Styles.TextArea);
         }
 
@@ -302,6 +350,7 @@ namespace BigCityLegacy.UI
 
         public static bool Button(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             return GUI.Button(rect, text ?? string.Empty, Styles.Button);
         }
 
@@ -315,6 +364,7 @@ namespace BigCityLegacy.UI
 
         public static bool GreenButton(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             return GUI.Button(rect, text ?? string.Empty, Styles.GreenButton);
         }
 
@@ -328,6 +378,7 @@ namespace BigCityLegacy.UI
 
         public static bool DangerButton(Rect rect, string text)
         {
+            RegisterElementRect(rect);
             return GUI.Button(rect, text ?? string.Empty, Styles.DangerButton);
         }
 
@@ -341,6 +392,7 @@ namespace BigCityLegacy.UI
 
         public static bool TabButton(Rect rect, string text, bool selected)
         {
+            RegisterElementRect(rect);
             GUIStyle style = new GUIStyle(Styles.Tab);
             if (selected)
             {
@@ -361,6 +413,7 @@ namespace BigCityLegacy.UI
 
         public static bool Toggle(Rect rect, bool value, string label)
         {
+            RegisterElementRect(rect);
             bool clicked = GUI.Button(rect, string.Empty, GUIStyle.none);
 
             Rect checkRect = new Rect(rect.x, rect.y + Mathf.Max(0f, (rect.height - 14f) * 0.5f), 14f, 14f);
@@ -383,6 +436,7 @@ namespace BigCityLegacy.UI
 
         public static float HorizontalSlider(Rect rect, float value, float min, float max)
         {
+            RegisterElementRect(rect);
             return LegacyUIValueControls.HorizontalSlider(rect, value, min, max);
         }
 
@@ -396,6 +450,7 @@ namespace BigCityLegacy.UI
 
         public static float VerticalSlider(Rect rect, float value, float min, float max)
         {
+            RegisterElementRect(rect);
             return LegacyUIValueControls.VerticalSlider(rect, value, min, max);
         }
 
@@ -409,6 +464,7 @@ namespace BigCityLegacy.UI
 
         public static float HorizontalScrollbar(Rect rect, float value, float visibleSize, float leftValue, float rightValue)
         {
+            RegisterElementRect(rect);
             return LegacyUIValueControls.HorizontalScrollbar(rect, value, visibleSize, leftValue, rightValue);
         }
 
@@ -422,6 +478,7 @@ namespace BigCityLegacy.UI
 
         public static float VerticalScrollbar(Rect rect, float value, float visibleSize, float topValue, float bottomValue)
         {
+            RegisterElementRect(rect);
             return LegacyUIValueControls.VerticalScrollbar(rect, value, visibleSize, topValue, bottomValue);
         }
 

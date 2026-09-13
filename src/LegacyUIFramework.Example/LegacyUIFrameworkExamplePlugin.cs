@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using BepInEx;
 using BigCityLegacy.UI;
 using UnityEngine;
@@ -16,6 +18,9 @@ namespace BigCityLegacy.UI.Example
         private float verticalSliderValue = 0.65f;
         private float horizontalScrollbarValue = 25f;
         private float verticalScrollbarValue = 45f;
+        private string[] dataPathFiles = Array.Empty<string>();
+        private float nextFileListRefresh;
+        private LegacyUIScrollView scrollView;
         private string status = "Ready";
         private LegacyUITheme greenTheme;
         private LegacyUITheme whiteTheme;
@@ -39,6 +44,16 @@ namespace BigCityLegacy.UI.Example
                     DragAlpha = 0.62f,
                     InputBlockMode = LegacyUIInputBlockMode.Window
                 });
+
+            scrollView = new LegacyUIScrollView(new Rect(0f, 0f, 0f, 0f))
+            {
+                Padding = 8f,
+                ShowHorizontalScrollbar = false,
+                ShowVerticalScrollbar = true
+            };
+
+            RefreshDataPathFiles();
+            nextFileListRefresh = Time.unscaledTime + 1f;
         }
 
         private void Update()
@@ -47,6 +62,12 @@ namespace BigCityLegacy.UI.Example
             {
                 window.Visible = !window.Visible;
                 window.SavePrefs();
+            }
+
+            if (window != null && window.Visible && tab == 1 && Time.unscaledTime >= nextFileListRefresh)
+            {
+                nextFileListRefresh = Time.unscaledTime + 1f;
+                RefreshDataPathFiles();
             }
         }
 
@@ -65,11 +86,12 @@ namespace BigCityLegacy.UI.Example
             LegacyUILayout ui = new LegacyUILayout(content, 7f);
 
             Rect tabs = ui.Row(25f);
-            float tabWidth = tabs.width / 4f;
+            float tabWidth = tabs.width / 5f;
             if (LegacyUI.TabButton(new Rect(tabs.x, tabs.y, tabWidth, tabs.height), "Controls", tab == 0)) tab = 0;
             if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth, tabs.y, tabWidth, tabs.height), "Values", tab == 1)) tab = 1;
-            if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 2f, tabs.y, tabWidth + 1f, tabs.height), "Text", tab == 2)) tab = 2;
-            if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 3f, tabs.y, tabWidth, tabs.height), "Themes", tab == 3)) tab = 3;
+            if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 2f, tabs.y, tabWidth + 1f, tabs.height), "ScrollView", tab == 2)) tab = 2;
+            if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 3f, tabs.y, tabWidth, tabs.height), "Text", tab == 3)) tab = 3;
+            if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 4f, tabs.y, tabWidth, tabs.height), "Themes", tab == 4)) tab = 4;
 
             ui.Space(4f);
 
@@ -78,6 +100,8 @@ namespace BigCityLegacy.UI.Example
             else if (tab == 1)
                 DrawValuesTab(ref ui);
             else if (tab == 2)
+                DrawScrollViewTab(ref ui);
+            else if (tab == 3)
                 DrawTextTab(ref ui);
             else
                 DrawThemesTab(ref ui);
@@ -137,6 +161,46 @@ namespace BigCityLegacy.UI.Example
 
             verticalSliderValue = LegacyUI.VerticalSlider(new Rect(right.x, right.y, 14f, right.height), verticalSliderValue, 0f, 1f);
             verticalScrollbarValue = LegacyUI.VerticalScrollbar(new Rect(right.x + 18f, right.y, 14f, right.height), verticalScrollbarValue, 35f, 0f, 100f);
+        }
+
+        private void DrawScrollViewTab(ref LegacyUILayout ui)
+        {
+            LegacyUI.Label(ui.Row(20f), "ScrollView: files in Application.dataPath");
+
+            float availableHeight = Mathf.Max(0f, ui.Area.yMax - ui.Y - 30f);
+            scrollView.ViewRect = new Rect(ui.X, ui.Y, ui.Width, availableHeight);
+            scrollView.Draw(delegate(Rect content)
+            {
+                LegacyUILayout list = new LegacyUILayout(content, 5f);
+
+                if (dataPathFiles.Length == 0)
+                {
+                    LegacyUI.MiniHint(list.Row(22f), "No files found in Application.dataPath");
+                    return;
+                }
+
+                for (int i = 0; i < dataPathFiles.Length; i++)
+                {
+                    string file = dataPathFiles[i];
+                    string fileName = Path.GetFileName(file);
+                    if (LegacyUI.Button(list.Row(26f), fileName))
+                        status = "Selected file: " + fileName;
+                }
+            });
+        }
+
+        private void RefreshDataPathFiles()
+        {
+            try
+            {
+                dataPathFiles = Directory.GetFiles(Application.dataPath, "*", SearchOption.TopDirectoryOnly);
+                Array.Sort(dataPathFiles, StringComparer.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                dataPathFiles = Array.Empty<string>();
+                Logger.LogWarning("Failed to enumerate Application.dataPath: " + ex.Message);
+            }
         }
 
         private void DrawTextTab(ref LegacyUILayout ui)
