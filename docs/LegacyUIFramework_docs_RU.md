@@ -1,25 +1,21 @@
 # LegacyUIFramework
 
-`LegacyUIFramework.dll` — это небольшая отдельная IMGUI-библиотека для плагинов BepInEx 5.
+`LegacyUIFramework.dll` — это небольшая отдельная IMGUI-библиотека для плагинов BigCityLegacy.
 Она содержит собственный визуальный стиль, а также переиспользуемые helpers для перетаскиваемых окон и базовых UI-элементов.
-
-> [!NOTE]
-> Фреймворк разрабатывается в рамках проекта BigCityLegacy и подразумевает использование как в нем самом, так и в дополнительных зависимых плагинах.
-> Использование LegacyUIFramework для сторонних игр возможно, но не гарантирует полную совместимость.
 
 Framework можно собрать и скопировать как отдельную DLL, а затем подключать из любого плагина, которому нужно рисовать интерфейс в едином стиле.
 
 ## Проекты
 
 ```text
-src/LegacyUIFramework/LegacyUIFramework.csproj
+LegacyUIFramework.csproj
 src/LegacyUIFramework.Example/LegacyUIFramework.Example.csproj
 ```
 
 Сборка framework:
 
 ```bash
-dotnet build .\LegacyUIFramework.csproj -c Debug -p:GameDir="path\to\game\dir"
+dotnet build .\LegacyUIFramework.csproj -c Debug
 ```
 
 Сборка и копирование example-плагина в BepInEx:
@@ -30,7 +26,7 @@ dotnet build .\src\LegacyUIFramework.Example\LegacyUIFramework.Example.csproj -c
 
 Для своих плагинов скопируйте `LegacyUIFramework.dll` рядом с DLL плагина или в общую папку модулей BigCityLegacy, которую загружает BepInEx.
 
-Для режима блокировки фонового ввода framework использует `0Harmony.dll` из `BepInEx/core` и `UnityEngine.UI.dll` + `UnityEngine.UIModule.dll`. 
+Для режима блокировки фонового ввода framework использует `0Harmony.dll` из `BepInEx/core` и `UnityEngine.UI.dll` + `UnityEngine.UIModule.dll` из `game_Data/Managed`. Дополнительные DLL копировать не нужно, если плагин работает внутри обычного BepInEx-окружения BigCityLegacy.
 
 ## Namespaces
 
@@ -47,6 +43,7 @@ LegacyUIThemeScope       временное переключение темы д
 LegacyUIPalette          редактируемая цветовая palette
 LegacyUIWindow           перетаскиваемое стилизованное окно
 LegacyUIWindowOptions    модификаторы окна
+LegacyUIScrollView       scrollable area с ручным или автоматическим внутренним полотном
 LegacyUIGuiScope         сохраняет/восстанавливает глобальное состояние Unity IMGUI
 LegacyUILayout           маленький helper для ручной fixed-layout вёрстки
 ```
@@ -192,6 +189,58 @@ float sy = LegacyUI.VerticalScrollbar(rect, sy, 20f, 0f, 100f);
 
 Helpers для sliders и scrollbars отрисовываются вручную и не зависят от изменения `GUI.skin`, поэтому несколько плагинов могут безопасно использовать framework, не конфликтуя за глобальное состояние skin.
 
+## ScrollView
+
+`LegacyUIScrollView` — отдельная scrollable area. `ViewRect` задаёт внешний видимый блок вместе со scrollbars, а `ContentRect` — виртуальное внутреннее полотно.
+
+Конструктор с одним `Rect` включает автоматический расчёт внутреннего полотна. На каждом draw-проходе его размер пересчитывается по `LegacyUI`-элементам, отрисованным внутри callback, с добавлением `Padding`. Это позволяет напрямую строить динамические списки:
+
+```csharp
+private LegacyUIScrollView scrollView = new LegacyUIScrollView(
+    new Rect(20f, 20f, 320f, 220f))
+{
+    Padding = 8f,
+    ShowHorizontalScrollbar = false,
+    ShowVerticalScrollbar = true
+};
+
+private void DrawFiles(string[] files)
+{
+    scrollView.Draw(delegate(Rect content)
+    {
+        LegacyUILayout list = new LegacyUILayout(content, 5f);
+        for (int i = 0; i < files.Length; i++)
+        {
+            if (LegacyUI.Button(list.Row(26f), files[i]))
+                Debug.Log(files[i]);
+        }
+    });
+}
+```
+
+В автоматическом режиме `ContentRect` всегда не меньше видимой области контента и динамически увеличивается или уменьшается по текущим controls. Все стандартные helpers из `LegacyUI` автоматически участвуют в измерении. Если элемент рисуется напрямую через `GUI.*`, его `Rect` нужно зарегистрировать внутри callback вручную:
+
+```csharp
+Rect custom = new Rect(content.x, content.y + 40f, 500f, 24f);
+GUI.Button(custom, "Raw IMGUI button");
+scrollView.IncludeContentRect(custom);
+```
+
+Для фиксированного внутреннего полотна передайте второй `Rect` в конструктор либо присвойте `ContentRect`. Присваивание `ContentRect` автоматически отключает `AutoContentSize`:
+
+```csharp
+LegacyUIScrollView map = new LegacyUIScrollView(
+    new Rect(20f, 20f, 320f, 220f),
+    new Rect(0f, 0f, 900f, 700f));
+
+map.Draw(delegate(Rect content)
+{
+    LegacyUI.Button(new Rect(content.x + 600f, content.y + 400f, 140f, 26f), "Far button");
+});
+```
+
+`UseAutoContentSize()` возвращает динамический расчёт, а `ResetScroll()` сбрасывает прокрутку в левый верхний угол. `ShowHorizontalScrollbar` и `ShowVerticalScrollbar` управляют тем, какие оси резервируют место и рисуют стилизованные scrollbars framework. Для отдельного экземпляра также доступны `ScrollbarSize`, `ScrollbarSpacing`, `DrawBackground`, `BackgroundAlpha`, `ScrollPosition` и `Theme`.
+
 ## Styles и тема
 
 При необходимости можно обращаться к styles из framework напрямую:
@@ -297,10 +346,8 @@ DangerButton
 TabButton
 Toggle
 HintBox
-HorizontalSlider
-VerticalSlider
-HorizontalScrollbar
-VerticalScrollbar
+ScrollView с автоматически рассчитываемым динамическим списком файлов
+HorizontalScrollbar / VerticalScrollbar внутри ScrollView
 Close button
 Drag fade modifier
 Input block mode switcher

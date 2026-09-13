@@ -16,6 +16,7 @@ A small standalone IMGUI library for BepInEx plugins. It makes it easy to create
 * All UI elements are implemented as reusable helpers on top of standard Unity IMGUI
 * Quickly create draggable windows with flexible configuration for size, behavior, opacity, and more
 * Create styled UI elements such as buttons, checkboxes, sliders, input fields, and more
+* Easily create ScrollViews - standalone scrollable areas with auto content sizing
 * Theme support, applied globally or to individual elements or groups of elements
 
 ![themes preview image](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/themes-preview.png?raw=true)
