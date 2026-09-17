@@ -243,6 +243,62 @@ map.Draw(delegate(Rect content)
 
 `UseAutoContentSize()` возвращает динамический расчёт, а `ResetScroll()` сбрасывает прокрутку в левый верхний угол. `ShowHorizontalScrollbar` и `ShowVerticalScrollbar` управляют тем, какие оси резервируют место и рисуют стилизованные scrollbars framework. Для отдельного экземпляра также доступны `ScrollbarSize`, `ScrollbarSpacing`, `DrawBackground`, `BackgroundAlpha`, `ScrollPosition` и `Theme`.
 
+> [!WARNING]
+> **Warning — порядок объявления IMGUI-элементов рядом со ScrollView**
+>
+> `LegacyUIScrollView`, как и остальные элементы `LegacyUIFramework`, работает поверх Unity IMGUI. В IMGUI состояние интерактивных контролов связано с их внутренними `control ID`, которые Unity назначает в том числе на основании **порядка вызовов GUI-элементов внутри `OnGUI()`**.
+>
+> По этой причине следует соблюдать осторожность, если `ScrollView` содержит **динамическое количество элементов**, а после него в коде объявляются stateful-контролы, например `TextField`, `TextArea` или другие элементы, использующие keyboard/mouse focus.
+>
+> Например, потенциально проблемный порядок:
+>
+> ```csharp
+> scroll.Draw(content =>
+> {
+>     for (int i = 0; i < dynamicItems.Count; i++)
+>         LegacyUI.Button(...);
+> });
+>
+> text = LegacyUI.TextField(textRect, text);
+> ```
+>
+> Если количество элементов внутри `ScrollView` изменяется, количество созданных перед `TextField` IMGUI-контролов также изменяется. В некоторых версиях Unity это может привести к изменению внутреннего `control ID` поля между различными GUI events (`Layout`, `MouseDown`, `KeyDown`, `Repaint`).
+>
+> В результате визуально исправный `TextField` может вести себя некорректно:
+>
+> * не получать или терять keyboard focus;
+> * не отображать caret;
+> * не поддерживать выделение текста мышью;
+> * терять текущую позицию курсора;
+> * некорректно реагировать на клики или клавиатурный ввод.
+>
+> **Рекомендуемый подход:** интерактивные элементы, которым требуется стабильное состояние IMGUI, объявляйте **до динамического содержимого `ScrollView`**.
+>
+> ```csharp
+> Rect scrollRect = ...;
+> Rect textRect = ...;
+>
+> // Stateful controls first.
+> text = LegacyUI.TextField(textRect, text);
+>
+> // Dynamic controls afterwards.
+> scroll.ViewRect = scrollRect;
+> scroll.Draw(content =>
+> {
+>     for (int i = 0; i < dynamicItems.Count; i++)
+>         LegacyUI.Button(...);
+> });
+> ```
+>
+> Порядок вызовов IMGUI-элементов **не обязан совпадать с их визуальным расположением**. Положение элемента определяется переданным ему `Rect`, поэтому `TextField` можно вызвать раньше `ScrollView`, даже если визуально он находится ниже него.
+>
+> Особенно желательно использовать такой порядок для `TextField`, `TextArea` и других controls, состояние которых сохраняется Unity между GUI events.
+>
+> Также без необходимости не следует вручную комбинировать стандартный ввод IMGUI с `GUI.FocusControl`, собственным чтением `Input.inputString` или отдельной обработкой курсора/выделения. `LegacyUI.TextField` и `LegacyUI.TextArea` рассчитаны на штатный механизм фокуса Unity IMGUI.
+>
+> Сам `LegacyUIScrollView` при этом может содержать любое количество динамических `LegacyUI`-элементов. Ограничение относится именно к **стабильности порядка IMGUI controls, расположенных после динамически изменяющегося содержимого**.
+
+
 ## Styles и тема
 
 При необходимости можно обращаться к styles из framework напрямую:
