@@ -323,7 +323,10 @@ namespace BigCityLegacy.UI
         public static string TextField(Rect rect, string value)
         {
             RegisterElementRect(rect);
-            return GUI.TextField(rect, value ?? string.Empty, Styles.TextField);
+            using (new LegacyUITextInputSkinScope(Palette))
+            {
+                return GUI.TextField(rect, value ?? string.Empty, Styles.TextField);
+            }
         }
 
         public static string TextField(Rect rect, string value, LegacyUITheme scopedTheme)
@@ -337,7 +340,10 @@ namespace BigCityLegacy.UI
         public static string TextArea(Rect rect, string value)
         {
             RegisterElementRect(rect);
-            return GUI.TextArea(rect, value ?? string.Empty, Styles.TextArea);
+            using (new LegacyUITextInputSkinScope(Palette))
+            {
+                return GUI.TextArea(rect, value ?? string.Empty, Styles.TextArea);
+            }
         }
 
         public static string TextArea(Rect rect, string value, LegacyUITheme scopedTheme)

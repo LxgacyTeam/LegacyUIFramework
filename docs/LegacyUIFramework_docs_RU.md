@@ -189,6 +189,8 @@ float sy = LegacyUI.VerticalScrollbar(rect, sy, 20f, 0f, 100f);
 
 Helpers для sliders и scrollbars отрисовываются вручную и не зависят от изменения `GUI.skin`, поэтому несколько плагинов могут безопасно использовать framework, не конфликтуя за глобальное состояние skin.
 
+`TextField` и `TextArea` автоматически применяют цвета редактирования текста из текущей активной темы: caret использует `Palette.TextBright`, а выделение — `Palette.Active` с уменьшенной прозрачностью. Unity хранит эти параметры в `GUI.skin.settings`, поэтому framework изменяет их только на время конкретного вызова text control и сразу восстанавливает предыдущие значения. Это работает с глобальной темой, `LegacyUI.WithTheme(...)`, темой окна и overload-ами отдельных элементов без постоянного изменения глобального `GUI.skin`.
+
 ## ScrollView
 
 `LegacyUIScrollView` — отдельная scrollable area. `ViewRect` задаёт внешний видимый блок вместе со scrollbars, а `ContentRect` — виртуальное внутреннее полотно.

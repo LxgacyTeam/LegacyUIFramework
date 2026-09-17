@@ -190,6 +190,8 @@ float sy = LegacyUI.VerticalScrollbar(rect, sy, 20f, 0f, 100f);
 
 The slider and scrollbar helpers are custom-drawn and do not depend on mutating `GUI.skin`, so several plugins can safely use the framework without fighting over global skin state.
 
+`TextField` and `TextArea` automatically apply text-editing colors from the currently active theme: the caret uses `Palette.TextBright`, while the selection uses `Palette.Active` with reduced opacity. Unity stores these values in `GUI.skin.settings`, so the framework overrides them only for the duration of the individual text-control call and immediately restores the previous values. This works with the global theme, `LegacyUI.WithTheme(...)`, window themes and per-control theme overloads without permanently changing the global `GUI.skin`.
+
 ## ScrollView
 
 `LegacyUIScrollView` is a standalone scrollable area. `ViewRect` defines the visible block including its scrollbars, while `ContentRect` is the virtual canvas inside the block.
