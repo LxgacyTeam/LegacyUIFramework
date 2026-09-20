@@ -4,7 +4,7 @@
 ---
 A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it easy to create draggable windows with styled UI elements. It runs on top of standard Unity IMGUI.
 
-**Developed as part of BigCityLegacy project, but usable independently by other BepInEx plugins and games.**
+**Developed as part of [BigCityLegacy](https://github.com/LxgacyTeam/BigCityLegacy) project, but usable independently by other BepInEx plugins and games.**
 
 ### Full usage documentation is available in the [Wiki section](https://github.com/LxgacyTeam/LegacyUIFramework/wiki/Documentation-on-English)
 
