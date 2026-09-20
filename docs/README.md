@@ -35,7 +35,7 @@ Unity 4.6 — 2017.1, Mono, .NET 3.5 runtime
 > [!NOTE]
 > Only Mono, IL2CPP **is not supported** in the current implementation
 
-For details on compatibility, see the Compatibility section of the Wiki.
+For details on compatibility, see the [Compatibility section](https://github.com/LxgacyTeam/LegacyUIFramework/wiki/Documentation-on-English#unity-version-compatibility) of the Wiki.
 
 ## Usage:
 
