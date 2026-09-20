@@ -1,9 +1,10 @@
-# LegacyUIFramework
+﻿# LegacyUIFramework
 
 ### [README на Русском](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/README_RU.md)
 ---
-A small standalone IMGUI library for BepInEx plugins. It makes it easy to create draggable windows with styled UI elements.
-**Developed specifically for the BigCityLegacy project**.
+A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it easy to create draggable windows with styled UI elements. It runs on top of standard Unity IMGUI.
+
+**Developed as part of BigCityLegacy project, but usable independently by other BepInEx plugins and games.**
 
 ### Full usage documentation is available in the [Wiki section](https://github.com/LxgacyTeam/LegacyUIFramework/wiki/Documentation-on-English)
 
@@ -18,8 +19,23 @@ A small standalone IMGUI library for BepInEx plugins. It makes it easy to create
 * Create styled UI elements such as buttons, checkboxes, sliders, input fields, and more
 * Easily create ScrollViews - standalone scrollable areas with auto content sizing
 * Theme support, applied globally or to individual elements or groups of elements
+* `LegacyInput` — a reflection-based Legacy Input wrapper that lets one plugin build work across old and new Unity layouts of `UnityEngine.Input`
 
 ![themes preview image](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/themes-preview.png?raw=true)
+
+## Compatibility:
+
+#### Main project (net472):
+Unity 2017.2 — Unity 6, Mono, .NET 4.x-compatible runtime
+
+#### Compatibility build (net35):
+Unity 4.6 — 2017.1, Mono, .NET 3.5 runtime
+*supported by the separate `LegacyUIFramework.net35` project*
+
+> [!NOTE]
+> Only Mono, IL2CPP **is not supported** in the current implementation
+
+For details on compatibility, see the Compatibility section of the Wiki.
 
 ## Usage:
 

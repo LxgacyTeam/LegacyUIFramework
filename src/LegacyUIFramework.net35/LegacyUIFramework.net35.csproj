@@ -1,0 +1,74 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>LegacyUIFramework</AssemblyName>
+    <RootNamespace>BigCityLegacy.UI</RootNamespace>
+    <Version>1.0.8-net35</Version>
+    <AssemblyVersion>1.0.8.0</AssemblyVersion>
+    <FileVersion>1.0.8.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+    <!--
+      Old Unity compatibility build:
+      - .NET Framework 3.5 / old Unity Mono profile
+      - monolithic UnityEngine.dll (pre-2017.2 assembly layout)
+	  
+	  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      Set GameDir + GameDataDir, or set ManagedDir and BepInExDir directly.
+	  
+	  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    -->
+    <GameDir Condition="'$(GameDir)' == ''">..\..\..\..\..\10_game</GameDir>
+    <GameDataDir Condition="'$(GameDataDir)' == ''">game_Data</GameDataDir>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">$(GameDir)\$(GameDataDir)\Managed</ManagedDir>
+    <BepInExDir Condition="'$(BepInExDir)' == ''">$(GameDir)\BepInEx\core</BepInExDir>
+    <HarmonyPath Condition="'$(HarmonyPath)' == ''">$(BepInExDir)\0Harmony.dll</HarmonyPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <NoWarn>1701;1702;0618;0649</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <NoWarn>1701;1702;0618;0649</NoWarn>
+  </PropertyGroup>
+
+  <Target Name="ValidateCompatibilityReferences" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(ManagedDir)\UnityEngine.dll')"
+           Text="LegacyUIFramework.Compat requires an old monolithic UnityEngine.dll. Set ManagedDir, or GameDir + GameDataDir, to the target game's Managed directory." />
+    <Error Condition="!Exists('$(ManagedDir)\UnityEngine.UI.dll')"
+           Text="LegacyUIFramework.Compat requires UnityEngine.UI.dll (uGUI, Unity 4.6+)." />
+    <Error Condition="!Exists('$(HarmonyPath)')"
+           Text="LegacyUIFramework.Compat requires a HarmonyLib-compatible 0Harmony.dll. Set HarmonyPath directly or set BepInExDir to the target BepInEx core directory." />
+  </Target>
+
+  <ItemGroup>
+    <Compile Include="..\LegacyUIFramework\BigCityLegacy\UI\*.cs">
+      <Link>BigCityLegacy\UI\%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(HarmonyPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

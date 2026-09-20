@@ -18,7 +18,7 @@ namespace BigCityLegacy.UI.Example
         private float verticalSliderValue = 0.65f;
         private float horizontalScrollbarValue = 25f;
         private float verticalScrollbarValue = 45f;
-        private string[] dataPathFiles = Array.Empty<string>();
+        private string[] dataPathFiles = new string[0];
         private float nextFileListRefresh;
         private LegacyUIScrollView scrollView;
         private string status = "Ready";
@@ -200,7 +200,7 @@ namespace BigCityLegacy.UI.Example
             }
             catch (Exception ex)
             {
-                dataPathFiles = Array.Empty<string>();
+                dataPathFiles = new string[0];
                 Logger.LogWarning("Failed to enumerate Application.dataPath: " + ex.Message);
             }
         }

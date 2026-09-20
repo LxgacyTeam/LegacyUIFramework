@@ -5,13 +5,24 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LegacyUIFramework</AssemblyName>
     <RootNamespace>BigCityLegacy.UI</RootNamespace>
-	<Version>1.0.7</Version>
+	<Version>1.0.8</Version>
 	<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+	<!--
+	  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	  
+      Set GameDir + GameDataDir, or set ManagedDir and BepInExDir directly.
+	  
+	  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    -->
 	<GameDir Condition="'$(GameDir)' == ''">..\..\..\..\..\prod_game</GameDir>
-    <ManagedDir>$(GameDir)\game_Data\Managed</ManagedDir>
-    <BepInExDir>$(GameDir)\BepInEx\core</BepInExDir>
+	<GameDataDir Condition="'$(GameDataDir)' == ''">game_Data</GameDataDir>
+	<ManagedDir Condition="'$(ManagedDir)' == ''">$(GameDir)\$(GameDataDir)\Managed</ManagedDir>
+	<BepInExDir Condition="'$(BepInExDir)' == ''">$(GameDir)\BepInEx\core</BepInExDir>
+	<HarmonyPath Condition="'$(HarmonyPath)' == ''">$(BepInExDir)\0Harmony.dll</HarmonyPath>
+	
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -24,6 +35,8 @@
   <Target Name="ValidateGameDir" BeforeTargets="PrepareForBuild">
 	  <Error Condition="'$(GameDir)' == '' Or !Exists('$(GameDir)')"
 			 Text="&#xD;&#xA;&gt; &gt; &gt; &gt; &gt; &gt; Invalid GameDir: '$(GameDir)' &lt; &lt; &lt; &lt; &lt; &lt; &#xD;&#xA;&#xD;&#xA;The project requires access to the game's Unity assemblies.&#xD;&#xA;Set &lt;GameDir&gt; in the .csproj file or specify it on the command line:&#xD;&#xA;dotnet build -p:GameDir=&quot;path\to\game&quot;" />
+	  <Error Condition="'$(GameDataDir)' == '' Or !Exists('$(GameDir)\$(GameDataDir)')"
+	         Text="&#xD;&#xA;&gt; &gt; &gt; &gt; &gt; &gt; Invalid GameDataDir: '$(GameDir)' &lt; &lt; &lt; &lt; &lt; &lt; &#xD;&#xA;&#xD;&#xA;Set correct data dir name from your game dir" />
   </Target>
 
   <ItemGroup>
@@ -53,8 +66,9 @@
 		<Private>false</Private>
 	</Reference>
     <Reference Include="0Harmony">
-      <HintPath>$(BepInExDir)\0Harmony.dll</HintPath>
+      <HintPath>$(HarmonyPath)</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
 </Project>
+

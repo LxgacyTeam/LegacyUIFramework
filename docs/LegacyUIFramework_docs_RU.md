@@ -1,21 +1,24 @@
-# LegacyUIFramework
+﻿# LegacyUIFramework
 
-`LegacyUIFramework.dll` — это небольшая отдельная IMGUI-библиотека для плагинов BigCityLegacy.
-Она содержит собственный визуальный стиль, а также переиспользуемые helpers для перетаскиваемых окон и базовых UI-элементов.
+`LegacyUIFramework.dll` — небольшая отдельная IMGUI-библиотека для Unity Mono/BepInEx-плагинов.
+Она содержит собственный визуальный стиль, переиспользуемые helpers для перетаскиваемых окон и базовых UI-элементов, а также compatibility helpers для различий между версиями Unity.
 
-Framework можно собрать и скопировать как отдельную DLL, а затем подключать из любого плагина, которому нужно рисовать интерфейс в едином стиле.
+Framework разрабатывается в рамках BigCityLegacy, но не зависит от feature-логики основного мода и может использоваться как отдельная DLL в других BepInEx-плагинах и играх с совместимым Unity Mono runtime.
 
 ## Проекты
 
 ```text
-LegacyUIFramework.csproj
+src/LegacyUIFramework/LegacyUIFramework.csproj
+src/LegacyUIFramework.net35/LegacyUIFramework.net35.csproj
+
 src/LegacyUIFramework.Example/LegacyUIFramework.Example.csproj
+src/LegacyUIFramework.Example.net35/LegacyUIFramework.Example.csproj
 ```
 
 Сборка framework:
 
 ```bash
-dotnet build .\LegacyUIFramework.csproj -c Debug
+dotnet build .\src\LegacyUIFramework\LegacyUIFramework.csproj -c Debug -p:GameDir="path\to\game\dir"
 ```
 
 Сборка и копирование example-плагина в BepInEx:
@@ -46,7 +49,116 @@ LegacyUIWindowOptions    модификаторы окна
 LegacyUIScrollView       scrollable area с ручным или автоматическим внутренним полотном
 LegacyUIGuiScope         сохраняет/восстанавливает глобальное состояние Unity IMGUI
 LegacyUILayout           маленький helper для ручной fixed-layout вёрстки
+LegacyInput              compatibility wrapper для Unity Legacy Input API
 ```
+
+## LegacyInput — совместимый Legacy Input API
+
+`LegacyInput` предназначен для BepInEx-плагинов, одна сборка которых должна работать на разных поколениях Unity. В старых версиях движка класс `UnityEngine.Input` находился в монолитном `UnityEngine.dll`, а в более новых версиях Legacy Input вынесен в отдельный модуль `UnityEngine.InputLegacyModule.dll`. Если плагин напрямую компилируется с `Input.GetKeyDown(...)`, его assembly reference может оказаться привязан к конкретной структуре Unity assemblies reference-build-а.
+
+`LegacyInput` не имеет compile-time ссылки на `UnityEngine.Input`. Во время `Init()` wrapper ищет тип `UnityEngine.Input` среди уже загруженных assemblies через reflection, создаёт delegates для поддерживаемых методов и затем использует их без повторного reflection lookup на каждом кадре.
+
+Рекомендуется один раз явно инициализировать wrapper в `Awake()`:
+
+```csharp
+private void Awake()
+{
+    LegacyInput.Init();
+}
+
+private void Update()
+{
+    if (LegacyInput.GetKeyDown("f10") && window != null)
+    {
+        window.ToggleVisible();
+        window.SavePrefs();
+    }
+}
+```
+
+`Init()` безопасно вызывать повторно: после первой попытки инициализации используется закэшированный результат. Методы wrapper-а также умеют лениво вызвать `Init()`, если он ещё не выполнялся, однако явный вызов в `Awake()` предпочтителен — delegates создаются в заранее определённый момент жизненного цикла плагина.
+
+Состояние wrapper-а можно проверить через:
+
+```csharp
+bool initialized = LegacyInput.Initialized;
+bool available = LegacyInput.Available;
+```
+
+`Available` означает, что `UnityEngine.Input` найден и как минимум строковый `GetKey(string)` удалось привязать к delegate. Отдельные API могут отсутствовать в необычной версии/сборке Unity; в таком случае соответствующие методы возвращают `false` или `0f`.
+
+Поддерживаемые методы и свойства:
+
+```csharp
+// Keyboard
+bool held = LegacyInput.GetKey("f10");
+bool down = LegacyInput.GetKeyDown("f10");
+bool up   = LegacyInput.GetKeyUp("f10");
+
+// Mouse
+bool mouseHeld = LegacyInput.GetMouseButton(0);
+bool mouseDown = LegacyInput.GetMouseButtonDown(0);
+bool mouseUp   = LegacyInput.GetMouseButtonUp(0);
+Vector3 mousePosition = LegacyInput.MousePosition;
+
+// Input Manager buttons
+bool fire     = LegacyInput.GetButton("Fire1");
+bool fireDown = LegacyInput.GetButtonDown("Fire1");
+bool fireUp   = LegacyInput.GetButtonUp("Fire1");
+
+// Input Manager axes
+float horizontal = LegacyInput.GetAxis("Horizontal");
+float raw         = LegacyInput.GetAxisRaw("Horizontal");
+
+// Misc
+bool anyKey = LegacyInput.AnyKey;
+bool anyKeyDown = LegacyInput.AnyKeyDown;
+```
+
+Для keyboard API используются строковые имена клавиш, поддерживаемые стандартным `UnityEngine.Input.GetKey(string)`. `GetButton*` и `GetAxis*` работают с именами, реально определёнными в Input Manager конкретной игры.
+
+> [!IMPORTANT]
+> `LegacyInput` решает **assembly compatibility** между вариантами размещения `UnityEngine.Input`, но не является реализацией нового Unity Input System. Он требует, чтобы Legacy Input Manager (`UnityEngine.Input`) присутствовал и был доступен в игре. В современных Unity-проектах, собранных только с `Active Input Handling = Input System Package (New)`, Legacy Input может быть отключён; такой backend текущий wrapper не подменяет.
+
+## Совместимость с версиями Unity
+
+Нижний предел текущей версии определяется **структурой reference assemblies и .NET target framework проекта**.
+
+Основной `LegacyUIFramework`:
+
+- проект собирается как `net472`; готовая DLL рассчитана на Unity Mono runtime с совместимым .NET 4.x API;
+- `.csproj` напрямую ссылается на модульные `UnityEngine.CoreModule.dll`, `UnityEngine.IMGUIModule.dll`, `UnityEngine.TextRenderingModule.dll` и `UnityEngine.UIModule.dll`; такая модульная структура UnityEngine официально появилась в Unity 2017.2;
+- `LegacyUIInputBlocker` использует uGUI (`UnityEngine.UI.dll`, `Canvas`, `GraphicRaycaster`, `Image`), поэтому наличие Unity UI/uGUI является runtime-зависимостью framework;
+- framework рассчитан на **Mono**-вариант Unity/BepInEx. IL2CPP в текущем виде не поддерживается.
+
+
+`LegacyUIFramework.net35`- отдельная сборочная конфигурация LegacyUIFramework для старых Unity Mono игр, использующих профиль .NET Framework 3.5 и старую монолитную структуру Unity assemblies.
+
+- target framework: `net35`;
+- Unity API берётся из монолитного `UnityEngine.dll`;
+- uGUI берётся из `UnityEngine.UI.dll`;
+- исходники UI общие с основной сборкой, поэтому API двух вариантов не расходится.
+
+
+Практически диапазон удобно считать так:
+
+```text
+Unity 2019.2 — Unity 6, Mono, .NET 4.x-compatible runtime
+    основной рекомендуемый диапазон для текущей сборки
+
+Unity 2017.2 — 2019.1
+    условно совместимо, если конкретная игра собрана на .NET 4.x
+
+Unity 4.6 — 2017.1, Mono, .NET 3.5 runtime
+    поддерживается отдельным проектом LegacyUIFramework.net35;
+    используются monolithic UnityEngine.dll + UnityEngine.UI.dll
+```
+
+> [!NOTE]
+> `src/LegacyUIFramework/LegacyUIFramework.csproj` остаётся основной `net472`-сборкой
+> `src/LegacyUIFramework.net35/LegacyUIFramework.net35.csproj` — альтернативная `net35`-сборка для старых Unity с монолитным UnityEngine.
+
+Для Unity 2017.2+ рекомендуется обычный проект LegacyUIFramework, поскольку начиная с этой ветки Unity перешла на модульные `UnityEngine.*Module.dll`. При необходимости `net35` всё ещё может использоваться и на более новых Unity, но для этого нужен отдельный набор reference assemblies под конкретную игру.
 
 ## Минимальное окно
 
@@ -63,6 +175,8 @@ public sealed class MyUiPlugin : BaseUnityPlugin
 
     private void Awake()
     {
+        LegacyInput.Init();
+
         window = new LegacyUIWindow(
             "My Window",
             new Rect(120f, 90f, 360f, 220f),
@@ -79,7 +193,7 @@ public sealed class MyUiPlugin : BaseUnityPlugin
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.F9))
+        if (LegacyInput.GetKeyDown("f9"))
         {
             window.Visible = !window.Visible;
             window.SavePrefs();

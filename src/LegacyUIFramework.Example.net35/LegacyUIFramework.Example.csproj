@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net35</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AssemblyName>LegacyUIFramework.Example</AssemblyName>
@@ -15,11 +15,11 @@
 
 	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	-->
-	<GameDir Condition="'$(GameDir)' == ''">..\..\..\..\..\prod_game</GameDir>
+	<GameDir Condition="'$(GameDir)' == ''">..\..\..\..\..\10_game</GameDir>
 	<GameDataDir Condition="'$(GameDataDir)' == ''">game_Data</GameDataDir>
 	<ManagedDir Condition="'$(ManagedDir)' == ''">$(GameDir)\$(GameDataDir)\Managed</ManagedDir>
 	<BepInExDir Condition="'$(BepInExDir)' == ''">$(GameDir)\BepInEx\core</BepInExDir>
-
+	  
     <CopyToPlugins Condition="'$(CopyToPlugins)' == ''">false</CopyToPlugins>
   </PropertyGroup>
 
@@ -31,7 +31,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\LegacyUIFramework\LegacyUIFramework.csproj" />
+    <ProjectReference Include="..\LegacyUIFramework.net35\LegacyUIFramework.net35.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,18 +41,6 @@
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(ManagedDir)\UnityEngine.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(ManagedDir)\UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>$(ManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

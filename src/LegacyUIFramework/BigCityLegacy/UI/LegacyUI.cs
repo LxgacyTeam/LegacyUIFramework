@@ -14,9 +14,31 @@ namespace BigCityLegacy.UI
         private static readonly List<LegacyUITheme> themeStack = new List<LegacyUITheme>();
         private static readonly List<LegacyUIContentTracker> contentTrackerStack = new List<LegacyUIContentTracker>();
 
-        public static string Version = Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "???";
+        public static string Version = GetInformationalVersion();
+
+        private static string GetInformationalVersion()
+        {
+            try
+            {
+                object[] attributes = Assembly.GetExecutingAssembly().GetCustomAttributes(
+                    typeof(AssemblyInformationalVersionAttribute),
+                    false);
+
+                if (attributes != null && attributes.Length > 0)
+                {
+                    AssemblyInformationalVersionAttribute attribute =
+                        attributes[0] as AssemblyInformationalVersionAttribute;
+
+                    if (attribute != null && !string.IsNullOrEmpty(attribute.InformationalVersion))
+                        return attribute.InformationalVersion;
+                }
+            }
+            catch
+            {
+            }
+
+            return "???";
+        }
 
         public static LegacyUITheme Theme
         {

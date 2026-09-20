@@ -90,7 +90,8 @@ namespace BigCityLegacy.UI
 
         internal static bool IsMouseBlockedForGameInput()
         {
-            return IsScreenPointBlockedForGameInput(Input.mousePosition);
+            Vector3 mousePosition = LegacyInput.MousePosition;
+            return IsScreenPointBlockedForGameInput(new Vector2(mousePosition.x, mousePosition.y));
         }
 
         internal static bool IsScreenPointBlockedForGameInput(Vector2 screenPointBottomLeft)
