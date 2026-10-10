@@ -46,6 +46,7 @@ namespace BigCityLegacy.UI
         public void Draw(Action<Rect> drawContent)
         {
             using (LegacyUI.WithTheme(Options != null ? Options.Theme : null))
+            using (LegacyUI.WithScale(Options != null ? Options.ScaleMultiplier : 1f))
             {
                 DrawInternal(drawContent);
             }
@@ -75,7 +76,7 @@ namespace BigCityLegacy.UI
             }
 
             FixRect();
-            LegacyUIInputBlocker.ReportWindow(inputBlockOwnerId, rect, Options.InputBlockMode);
+            LegacyUIInputBlocker.ReportWindow(inputBlockOwnerId, LegacyUI.ToPhysicalRect(rect), Options.InputBlockMode);
 
             Color oldColor = GUI.color;
             if (isDragging && Options.FadeWhileDragging)
@@ -200,15 +201,15 @@ namespace BigCityLegacy.UI
             if (Options.ShowCloseButton)
                 titleArea.width -= 34f;
 
-            if (cur.type == EventType.MouseDown && cur.button == 0 && titleArea.Contains(cur.mousePosition))
+            if (cur.type == EventType.MouseDown && cur.button == 0 && titleArea.Contains(LegacyUI.MousePosition))
             {
                 isDragging = true;
-                dragOffset = cur.mousePosition - rect.position;
+                dragOffset = LegacyUI.MousePosition - rect.position;
                 cur.Use();
             }
             else if (cur.type == EventType.MouseDrag && isDragging)
             {
-                rect.position = cur.mousePosition - dragOffset;
+                rect.position = LegacyUI.MousePosition - dragOffset;
                 FixRect();
                 cur.Use();
             }
@@ -232,11 +233,11 @@ namespace BigCityLegacy.UI
             bool shouldBlock;
             if (Options.InputBlockMode == LegacyUIInputBlockMode.Screen)
             {
-                shouldBlock = new Rect(0f, 0f, Screen.width, Screen.height).Contains(cur.mousePosition);
+                shouldBlock = new Rect(0f, 0f, LegacyUI.VirtualScreenSize.x, LegacyUI.VirtualScreenSize.y).Contains(LegacyUI.MousePosition);
             }
             else
             {
-                shouldBlock = rect.Contains(cur.mousePosition);
+                shouldBlock = rect.Contains(LegacyUI.MousePosition);
             }
 
             if (shouldBlock)

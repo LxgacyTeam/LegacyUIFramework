@@ -533,3 +533,114 @@ This plugin is only a usage sample. It is not required by the framework.
 ## Integration rule for BigCityLegacy
 
 Do not move large optional UI helpers back into the main BigCityLegacy plugin. New UI-heavy plugins should reference `LegacyUIFramework.dll` and keep their own feature logic in separate assemblies.
+
+---
+
+## New in 1.1.0: scaling, Dropdown and Counter
+
+### IMGUI scaling
+
+Scaling is **enabled by default** for UI drawn inside `LegacyUIGuiScope`. Keep using normal design-pixel `Rect` coordinates, window sizes, `LegacyUILayout` and `LegacyUIScrollView`; the framework applies the scaling transform via `GUI.matrix`. Do **not** multiply rectangle coordinates yourself.
+
+Default mode is `Automatic`: `min(Screen.width / 1920, Screen.height / 1080) × BaseScale`, clamped to `MinScale..MaxScale` (defaults: 0.75–4). At `BaseScale=1`: 1920×1080 → 1×, 2560×1440 → 1.333×, 3840×2160 → 2×. For 3× at UHD set `BaseScale=1.5`.
+
+Prefer a dedicated settings object **per plugin**, since multiple plugins can share a single framework assembly:
+
+```csharp
+private readonly LegacyUIScaleSettings uiScale = new LegacyUIScaleSettings();
+
+private void OnGUI()
+{
+    using (new LegacyUIGuiScope(-10000, uiScale))
+        window.Draw(DrawContent);
+}
+
+uiScale.Mode = LegacyUIScaleMode.Automatic;
+uiScale.BaseScale = 1.5f;
+
+// Alternatively, use a fixed multiplier on any screen:
+uiScale.Mode = LegacyUIScaleMode.Manual;
+uiScale.ManualScale = 1.25f;
+```
+
+Without an explicit settings object, `LegacyUIGuiScope(-10000)` uses shared `LegacyUI.ScaleSettings` (automatic by default). `LegacyUI.Scale` reports the active coefficient; `LegacyUI.VirtualScreenSize` provides dimensions in design pixels. `LegacyUI.MousePosition` handles custom mouse hit testing. Draggable windows and game input blocking account for the active transform.
+
+`LegacyUIWindowOptions.ScaleMultiplier` scales an individual window (default 1×). For an individual element/group use:
+
+```csharp
+using (LegacyUI.WithScale(1.2f, new Vector2(buttonRect.x, buttonRect.y)))
+    LegacyUI.Button(buttonRect, "Large button");
+```
+
+`WithScale` is **relative** to the current scale; the `pivot` overload preserves the chosen point. `Dispose()` always restores the prior matrix. Account for an enlarged control's visual bounds when laying out its neighbors.
+
+Keep persistent themes and stateful controls in `Awake`/fields, **not** constructed inside `OnGUI`, to avoid allocations and native texture leaks.
+
+### LegacyUIDropdown
+
+A stateful dropdown using `LegacyUIScrollView`: `PopupWidth` controls the open popup width (0 = button width), `MaxHeight` caps its height, and excess items scroll vertically. Selection is exposed via `SelectedIndex` and `SelectionChanged`.
+
+```csharp
+// Awake:
+dropdown = new LegacyUIDropdown(new[] { "Vanilla", "Sport", "Rally", "Drift" }, 0)
+{
+    PopupWidth = 260f,
+    MaxHeight = 110f,
+    ItemHeight = 27f
+};
+
+// OnGUI:
+using (new LegacyUIGuiScope(-10000, uiScale))
+{
+    dropdown.HandlePopupInput(); // before underlying UI, prevents click-through
+    window.Draw(delegate(Rect area)
+    {
+        dropdown.Draw(new Rect(area.x, area.y + 60f, 210f, 27f));
+    });
+    dropdown.DrawPopup(); // draw LAST and OUTSIDE GUI.BeginScrollView
+}
+```
+
+The popup must be drawn in the same root GUI coordinate space as its anchor, **last**, and outside clipped `GUI.BeginGroup`/`GUI.BeginScrollView` areas. For dropdowns inside an existing scrollview you would need to convert the anchor's coordinates to root GUI coordinates. `HandlePopupInput` should run before other interactive controls if they could overlap the popup. Reuse the same dropdown instance across IMGUI events.
+
+### Counter
+
+**Stateless integer stepper:**
+
+```csharp
+quantity = LegacyUI.Counter(new Rect(15, 20, 200, 28), quantity,
+                            step: 5, minValue: 0, maxValue: 100);
+```
+
+**Stateful editable floating-point stepper:**
+
+```csharp
+// Awake:
+boost = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
+boost.NumberFormat = "0.00";
+
+// OnGUI:
+float selectedBoost = boost.Draw(new Rect(15, 60, 210, 28));
+```
+
+`Step` determines the increment/decrement. `MinValue`/`MaxValue` clamp input and button presses. Typed numbers use invariant formatting (dot decimal separator); set `AllowTyping=false` to make the middle value read-only. Optional `Theme` changes the counter's appearance. Combine with `WithScale` to enlarge a group or control.
+
+**IMGUI control-ID warning:** keep stateful controls in consistent call order across `Layout`, `Repaint`, and input events. Drawing a variable number of buttons in a scrollview *before* a text input can break focus and cursor handling. Draw `TextField` / `LegacyUICounter` before dynamically sized scrollviews; Rects determine visual placement independently of call order.
+
+
+## Changes in 1.1.1 — scaled mouse input and Counter text editing
+
+- `LegacyUI.MousePosition` now returns the active `Event.current.mousePosition` without applying `GUI.matrix.inverse` again. Custom IMGUI hit tests (window dragging, sliders, scrollbars and dropdowns) must use GUI-space event coordinates. The previous extra conversion displaced hit regions at non-1x scaling. Raw `LegacyInput.MousePosition` remains bottom-left-origin physical screen input, unsuitable for direct GUI `Rect.Contains` checks inside clips.
+- `LegacyUICounter.Draw` keeps a **draft string** independent of the committed `Value`. Any intermediate text is allowed while editing, including `-`, `1.`, and an empty string. Values are parsed and clamped **only** when Enter is pressed, GUI focus changes, or the user left-clicks outside the field. Both `1.25` and `1,25` are accepted. Invalid entries restore the last committed value.
+- Counter draws the text input before its buttons to stabilize IMGUI control IDs, and never reformats the draft while the text editor has focus; this preserves the caret and selection.
+- The Example scale slider applies changes after mouse release, so its own transform does not move during a drag. `Reset 1x` and `F8` restore manual 1x scaling.
+
+```csharp
+// Create the state once, NOT inside OnGUI.
+counter = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
+
+// Draft editing does not modify Value until committed.
+float confirmedValue = counter.Draw(new Rect(20f, 20f, 180f, 28f));
+```
+
+**Note:** Unity IMGUI requires consistent GUI control ordering across `Layout`, `Repaint`, `MouseDown` and `KeyDown`; keep the Counter instance persistent and avoid dynamically changing the number of earlier controls while editing.

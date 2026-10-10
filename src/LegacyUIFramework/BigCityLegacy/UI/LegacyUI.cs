@@ -11,6 +11,59 @@ namespace BigCityLegacy.UI
     public static class LegacyUI
     {
         private static LegacyUITheme theme;
+        private static readonly LegacyUIScaleSettings globalScaleSettings = new LegacyUIScaleSettings();
+        internal static float ActiveScale = 1f;
+
+        /// <summary>Defaults used by LegacyUIGuiScope unless that plugin provides its own settings.</summary>
+        public static LegacyUIScaleSettings ScaleSettings { get { return globalScaleSettings; } }
+
+        /// <summary>Current scale inside an IMGUI scope (1 outside one).</summary>
+        public static float Scale { get { return ActiveScale; } }
+
+        /// <summary>Virtual screen size available at the current scale.</summary>
+        public static Vector2 VirtualScreenSize
+        {
+            get { return new Vector2(Screen.width / Mathf.Max(0.001f, ActiveScale),
+                                     Screen.height / Mathf.Max(0.001f, ActiveScale)); }
+        }
+
+        /// <summary>Mouse position in current virtual GUI coordinates for manual hit-testing.</summary>
+        public static Vector2 MousePosition
+        {
+            get
+            {
+                Event e = Event.current;
+                if (e == null) return Vector2.zero;
+                // IMGUI's Event position is in the active GUI coordinate system.
+                // Do NOT multiply it by GUI.matrix.inverse: Unity already resolves
+                // the GUI event/clip coordinate space. Applying the inverse again
+                // offsets drags and hit tests whenever the UI scale is not 1x.
+                // Unlike LegacyInput.MousePosition, this also works inside GUI clips.
+                return e.mousePosition;
+            }
+        }
+
+        /// <summary>Scale a group around a pivot in its current virtual coordinate system.</summary>
+        public static LegacyUIScaleScope WithScale(float multiplier, Vector2 pivot)
+        {
+            return new LegacyUIScaleScope(multiplier, pivot);
+        }
+
+        /// <summary>Screen-space (physical GUI pixel) rect for the game input blocker.</summary>
+        internal static Rect ToPhysicalRect(Rect virtualRect)
+        {
+            Matrix4x4 matrix = GUI.matrix;
+            Vector3 a = matrix.MultiplyPoint3x4(new Vector3(virtualRect.xMin, virtualRect.yMin, 0f));
+            Vector3 b = matrix.MultiplyPoint3x4(new Vector3(virtualRect.xMax, virtualRect.yMax, 0f));
+            return Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y),
+                                   Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y));
+        }
+
+        public static LegacyUIScaleScope WithScale(float multiplier)
+        {
+            return new LegacyUIScaleScope(multiplier, Vector2.zero);
+        }
+
         private static readonly List<LegacyUITheme> themeStack = new List<LegacyUITheme>();
         private static readonly List<LegacyUIContentTracker> contentTrackerStack = new List<LegacyUIContentTracker>();
 
@@ -518,11 +571,29 @@ namespace BigCityLegacy.UI
             }
         }
 
+        /// <summary>Simple integer stepper. For editable numeric input use LegacyUICounter.</summary>
+        public static int Counter(Rect rect, int value, int step = 1,
+                                  int minValue = int.MinValue, int maxValue = int.MaxValue)
+        {
+            if (maxValue < minValue) { int t = minValue; minValue = maxValue; maxValue = t; }
+            value = Mathf.Clamp(value, minValue, maxValue);
+            float buttonWidth = Mathf.Min(rect.height, Mathf.Max(18f, rect.width * 0.25f));
+            if (Button(new Rect(rect.x, rect.y, buttonWidth, rect.height), "−"))
+                value = (int)Math.Max(minValue, (long)value - Math.Max(1, step));
+            HintBox(new Rect(rect.x + buttonWidth + 3f, rect.y,
+                             Mathf.Max(0f, rect.width - 2f * buttonWidth - 6f), rect.height),
+                    value.ToString());
+            if (Button(new Rect(rect.xMax - buttonWidth, rect.y, buttonWidth, rect.height), "+"))
+                value = (int)Math.Min(maxValue, (long)value + Math.Max(1, step));
+            RegisterElementRect(rect);
+            return value;
+        }
+
         internal static Rect ClampRectToScreen(Rect rect, float padding)
         {
             if (rect.width < 1f || rect.height < 1f) return rect;
-            float maxX = Mathf.Max(padding, Screen.width - rect.width - padding);
-            float maxY = Mathf.Max(padding, Screen.height - rect.height - padding);
+            float maxX = Mathf.Max(padding, VirtualScreenSize.x - rect.width - padding);
+            float maxY = Mathf.Max(padding, VirtualScreenSize.y - rect.height - padding);
             rect.x = Mathf.Clamp(rect.x, padding, maxX);
             rect.y = Mathf.Clamp(rect.y, padding, maxY);
             return rect;

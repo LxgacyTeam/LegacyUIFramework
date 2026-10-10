@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace BigCityLegacy.UI.Example
 {
-    [BepInPlugin("bigcitylegacy.legacyuiframework.example", "BigCityLegacy LegacyUIFramework Example", "1.0.8")]
+    [BepInPlugin("bigcitylegacy.legacyuiframework.example", "BigCityLegacy LegacyUIFramework Example", "1.1.0")]
     public sealed class LegacyUIFrameworkExamplePlugin : BaseUnityPlugin
     {
         private LegacyUIWindow window;
@@ -21,6 +21,12 @@ namespace BigCityLegacy.UI.Example
         private string[] dataPathFiles = new string[0];
         private float nextFileListRefresh;
         private LegacyUIScrollView scrollView;
+        private LegacyUIScaleSettings scaleSettings;
+        private float stagedBaseScale;
+        private float stagedManualScale;
+        private LegacyUIDropdown dropdown;
+        private LegacyUICounter counter;
+        private int integerCounter = 10;
         private string status = "Ready";
         private LegacyUITheme greenTheme;
         private LegacyUITheme whiteTheme;
@@ -33,10 +39,19 @@ namespace BigCityLegacy.UI.Example
             amberTheme = CreateAmberTheme();
 
             LegacyInput.Init();
+            // Per-plugin settings: auto scale enabled by default, FHD = 1x, UHD = 2x.
+            scaleSettings = new LegacyUIScaleSettings();
+            stagedBaseScale = scaleSettings.BaseScale;
+            stagedManualScale = scaleSettings.ManualScale;
+            dropdown = new LegacyUIDropdown(new [] {
+                "Vanilla", "Sport", "Rally", "Drift", "Track", "Off-road", "Custom"
+            }, 0) { PopupWidth = 260f, MaxHeight = 115f, ItemHeight = 27f };
+            counter = new LegacyUICounter(1.5f, 0.25f, 0f, 10f) { NumberFormat = "0.00" };
+            dropdown.SelectionChanged += delegate(int index) { status = "Dropdown selected #" + index; };
 
             window = new LegacyUIWindow(
                 "Legacy UI Framework Example",
-                new Rect(120f, 90f, 455f, 500f),
+                new Rect(120f, 90f, 455f, 565f),
                 new LegacyUIWindowOptions
                 {
                     ShowCloseButton = true,
@@ -60,6 +75,15 @@ namespace BigCityLegacy.UI.Example
 
         private void Update()
         {
+            // Recovery shortcut if a user chooses an inconvenient scale.
+            if (LegacyInput.GetKeyDown("F8"))
+            {
+                scaleSettings.Mode = LegacyUIScaleMode.Manual;
+                scaleSettings.ManualScale = stagedManualScale = 1f;
+                scaleSettings.BaseScale = stagedBaseScale = 1f;
+                status = "Scale reset to manual 1.0x";
+            }
+
             if (LegacyInput.GetKeyDown("F9") && window != null)
             {
                 window.Visible = !window.Visible;
@@ -77,9 +101,11 @@ namespace BigCityLegacy.UI.Example
         {
             if (window == null || !window.Visible) return;
 
-            using (new LegacyUIGuiScope(-10000))
+            using (new LegacyUIGuiScope(-10000, scaleSettings))
             {
+                if (tab == 5) dropdown.HandlePopupInput();
                 window.Draw(DrawWindowContent);
+                if (tab == 5) dropdown.DrawPopup(); // Must be outside clips and after other controls.
             }
         }
 
@@ -88,12 +114,13 @@ namespace BigCityLegacy.UI.Example
             LegacyUILayout ui = new LegacyUILayout(content, 7f);
 
             Rect tabs = ui.Row(25f);
-            float tabWidth = tabs.width / 5f;
+            float tabWidth = tabs.width / 6f;
             if (LegacyUI.TabButton(new Rect(tabs.x, tabs.y, tabWidth, tabs.height), "Controls", tab == 0)) tab = 0;
             if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth, tabs.y, tabWidth, tabs.height), "Values", tab == 1)) tab = 1;
             if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 2f, tabs.y, tabWidth + 1f, tabs.height), "ScrollView", tab == 2)) tab = 2;
             if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 3f, tabs.y, tabWidth, tabs.height), "Text", tab == 3)) tab = 3;
             if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 4f, tabs.y, tabWidth, tabs.height), "Themes", tab == 4)) tab = 4;
+            if (LegacyUI.TabButton(new Rect(tabs.x + tabWidth * 5f, tabs.y, tabWidth, tabs.height), "Widgets", tab == 5)) tab = 5;
 
             ui.Space(4f);
 
@@ -105,8 +132,10 @@ namespace BigCityLegacy.UI.Example
                 DrawScrollViewTab(ref ui);
             else if (tab == 3)
                 DrawTextTab(ref ui);
-            else
+            else if (tab == 4)
                 DrawThemesTab(ref ui);
+            else
+                DrawWidgetsTab(ref ui);
 
             Rect statusRect = new Rect(content.x, content.y + content.height - 24f, content.width, 20f);
             LegacyUI.Status(statusRect, status);
@@ -189,6 +218,67 @@ namespace BigCityLegacy.UI.Example
                         status = "Selected file: " + fileName;
                 }
             });
+        }
+
+        private void DrawWidgetsTab(ref LegacyUILayout ui)
+        {
+            LegacyUI.Title(ui.Row(24f), "Scale + Dropdown + Counter");
+            LegacyUI.Label(ui.Row(19f), "Current UI scale: " + LegacyUI.Scale.ToString("0.00") + "x");
+
+            Rect modes = ui.Row(25f);
+            float half = (modes.width - 6f) * 0.5f;
+            if (LegacyUI.TabButton(new Rect(modes.x, modes.y, half, modes.height),
+                "Automatic", scaleSettings.Mode == LegacyUIScaleMode.Automatic))
+                scaleSettings.Mode = LegacyUIScaleMode.Automatic;
+            if (LegacyUI.TabButton(new Rect(modes.x + half + 6f, modes.y, half, modes.height),
+                "Manual", scaleSettings.Mode == LegacyUIScaleMode.Manual))
+                scaleSettings.Mode = LegacyUIScaleMode.Manual;
+
+            LegacyUI.Label(ui.Row(19f), scaleSettings.Mode == LegacyUIScaleMode.Automatic
+                ? "Base multiplier (FHD): " + stagedBaseScale.ToString("0.00")
+                : "Manual scale: " + stagedManualScale.ToString("0.00"));
+            // Do not rescale the UI while the slider owns the mouse drag:
+            // changing GUI.matrix mid-gesture moves the track under the pointer.
+            Rect scaleRow = ui.Row(23f);
+            Rect scaleSlider = new Rect(scaleRow.x, scaleRow.y, scaleRow.width - 90f, scaleRow.height);
+            if (scaleSettings.Mode == LegacyUIScaleMode.Automatic)
+                stagedBaseScale = LegacyUI.HorizontalSlider(scaleSlider, stagedBaseScale, 0.75f, 2f);
+            else
+                stagedManualScale = LegacyUI.HorizontalSlider(scaleSlider, stagedManualScale, 0.75f, 3f);
+
+            if (GUIUtility.hotControl == 0)
+            {
+                scaleSettings.BaseScale = stagedBaseScale;
+                scaleSettings.ManualScale = stagedManualScale;
+            }
+            if (LegacyUI.Button(new Rect(scaleRow.xMax - 84f, scaleRow.y, 84f, scaleRow.height), "Reset 1x"))
+            {
+                scaleSettings.Mode = LegacyUIScaleMode.Manual;
+                scaleSettings.BaseScale = stagedBaseScale = 1f;
+                scaleSettings.ManualScale = stagedManualScale = 1f;
+            }
+            LegacyUI.MiniHint(ui.Row(16f), "Applied after releasing slider | F8 = reset to 1x");
+
+            ui.Space(6f);
+            LegacyUI.Label(ui.Row(19f), "Dropdown (max height = 115 virtual pixels):");
+            dropdown.Draw(ui.Row(27f));
+
+            ui.Space(8f);
+            LegacyUI.Label(ui.Row(19f), "Float counter: type freely, Enter/click outside to apply");
+            counter.Draw(ui.Row(27f));
+            ui.Space(4f);
+            LegacyUI.Label(ui.Row(19f), "Integer counter (step 5):");
+            integerCounter = LegacyUI.Counter(ui.Row(27f), integerCounter, 5, 0, 100);
+
+            ui.Space(8f);
+            Rect button = ui.Row(26f);
+            // Element-level local multiplier around the top-left of its own rect.
+            using (LegacyUI.WithScale(1.12f, button.position))
+            {
+                if (LegacyUI.GreenButton(new Rect(button.x, button.y, button.width * 0.6f, button.height),
+                    "Element scale 1.12x"))
+                    status = "Local scaled button clicked";
+            }
         }
 
         private void RefreshDataPathFiles()

@@ -16,6 +16,9 @@ namespace BigCityLegacy.UI
         /// </summary>
         public LegacyUITheme Theme;
 
+        /// <summary>Window-local scale multiplier. Default 1; relative to current GUI scope.</summary>
+        public float ScaleMultiplier = 1f;
+
         /// <summary>
         /// Controls how visible windows consume mouse events after their own IMGUI controls are drawn.
         /// Default value blocks clicks only inside the window rectangle.

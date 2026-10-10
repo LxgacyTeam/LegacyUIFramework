@@ -27,19 +27,19 @@ namespace BigCityLegacy.UI
                 switch (ev.GetTypeForControl(id))
                 {
                     case EventType.MouseDown:
-                        if (rect.Contains(ev.mousePosition) && ev.button == 0)
+                        if (rect.Contains(LegacyUI.MousePosition) && ev.button == 0)
                         {
                             GUIUtility.hotControl = id;
                             activeControlId = id;
-                            dragOffset = thumb.Contains(ev.mousePosition) ? ev.mousePosition.x - thumb.x : thumbWidth * 0.5f;
-                            value = HorizontalValueFromMouse(rect, ev.mousePosition.x, dragOffset, thumbWidth, min, max);
+                            dragOffset = thumb.Contains(LegacyUI.MousePosition) ? LegacyUI.MousePosition.x - thumb.x : thumbWidth * 0.5f;
+                            value = HorizontalValueFromMouse(rect, LegacyUI.MousePosition.x, dragOffset, thumbWidth, min, max);
                             ev.Use();
                         }
                         break;
                     case EventType.MouseDrag:
                         if (GUIUtility.hotControl == id && activeControlId == id)
                         {
-                            value = HorizontalValueFromMouse(rect, ev.mousePosition.x, dragOffset, thumbWidth, min, max);
+                            value = HorizontalValueFromMouse(rect, LegacyUI.MousePosition.x, dragOffset, thumbWidth, min, max);
                             ev.Use();
                         }
                         break;
@@ -83,19 +83,19 @@ namespace BigCityLegacy.UI
                 switch (ev.GetTypeForControl(id))
                 {
                     case EventType.MouseDown:
-                        if (rect.Contains(ev.mousePosition) && ev.button == 0)
+                        if (rect.Contains(LegacyUI.MousePosition) && ev.button == 0)
                         {
                             GUIUtility.hotControl = id;
                             activeControlId = id;
-                            dragOffset = thumb.Contains(ev.mousePosition) ? ev.mousePosition.y - thumb.y : thumbHeight * 0.5f;
-                            value = VerticalValueFromMouse(rect, ev.mousePosition.y, dragOffset, thumbHeight, min, max);
+                            dragOffset = thumb.Contains(LegacyUI.MousePosition) ? LegacyUI.MousePosition.y - thumb.y : thumbHeight * 0.5f;
+                            value = VerticalValueFromMouse(rect, LegacyUI.MousePosition.y, dragOffset, thumbHeight, min, max);
                             ev.Use();
                         }
                         break;
                     case EventType.MouseDrag:
                         if (GUIUtility.hotControl == id && activeControlId == id)
                         {
-                            value = VerticalValueFromMouse(rect, ev.mousePosition.y, dragOffset, thumbHeight, min, max);
+                            value = VerticalValueFromMouse(rect, LegacyUI.MousePosition.y, dragOffset, thumbHeight, min, max);
                             ev.Use();
                         }
                         break;
@@ -140,19 +140,19 @@ namespace BigCityLegacy.UI
                 switch (ev.GetTypeForControl(id))
                 {
                     case EventType.MouseDown:
-                        if (rect.Contains(ev.mousePosition) && ev.button == 0)
+                        if (rect.Contains(LegacyUI.MousePosition) && ev.button == 0)
                         {
                             GUIUtility.hotControl = id;
                             activeControlId = id;
-                            dragOffset = thumb.Contains(ev.mousePosition) ? ev.mousePosition.x - thumb.x : thumbWidth * 0.5f;
-                            value = HorizontalValueFromMouse(rect, ev.mousePosition.x, dragOffset, thumbWidth, leftValue, rightValue);
+                            dragOffset = thumb.Contains(LegacyUI.MousePosition) ? LegacyUI.MousePosition.x - thumb.x : thumbWidth * 0.5f;
+                            value = HorizontalValueFromMouse(rect, LegacyUI.MousePosition.x, dragOffset, thumbWidth, leftValue, rightValue);
                             ev.Use();
                         }
                         break;
                     case EventType.MouseDrag:
                         if (GUIUtility.hotControl == id && activeControlId == id)
                         {
-                            value = HorizontalValueFromMouse(rect, ev.mousePosition.x, dragOffset, thumbWidth, leftValue, rightValue);
+                            value = HorizontalValueFromMouse(rect, LegacyUI.MousePosition.x, dragOffset, thumbWidth, leftValue, rightValue);
                             ev.Use();
                         }
                         break;
@@ -198,19 +198,19 @@ namespace BigCityLegacy.UI
                 switch (ev.GetTypeForControl(id))
                 {
                     case EventType.MouseDown:
-                        if (rect.Contains(ev.mousePosition) && ev.button == 0)
+                        if (rect.Contains(LegacyUI.MousePosition) && ev.button == 0)
                         {
                             GUIUtility.hotControl = id;
                             activeControlId = id;
-                            dragOffset = thumb.Contains(ev.mousePosition) ? ev.mousePosition.y - thumb.y : thumbHeight * 0.5f;
-                            value = VerticalValueFromMouse(rect, ev.mousePosition.y, dragOffset, thumbHeight, topValue, bottomValue);
+                            dragOffset = thumb.Contains(LegacyUI.MousePosition) ? LegacyUI.MousePosition.y - thumb.y : thumbHeight * 0.5f;
+                            value = VerticalValueFromMouse(rect, LegacyUI.MousePosition.y, dragOffset, thumbHeight, topValue, bottomValue);
                             ev.Use();
                         }
                         break;
                     case EventType.MouseDrag:
                         if (GUIUtility.hotControl == id && activeControlId == id)
                         {
-                            value = VerticalValueFromMouse(rect, ev.mousePosition.y, dragOffset, thumbHeight, topValue, bottomValue);
+                            value = VerticalValueFromMouse(rect, LegacyUI.MousePosition.y, dragOffset, thumbHeight, topValue, bottomValue);
                             ev.Use();
                         }
                         break;

@@ -5,9 +5,9 @@
     <Nullable>disable</Nullable>
     <AssemblyName>LegacyUIFramework</AssemblyName>
     <RootNamespace>BigCityLegacy.UI</RootNamespace>
-    <Version>1.0.8-net35</Version>
-    <AssemblyVersion>1.0.8.0</AssemblyVersion>
-    <FileVersion>1.0.8.0</FileVersion>
+    <Version>1.1.1-net35</Version>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <FileVersion>1.1.1.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>

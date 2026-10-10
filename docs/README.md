@@ -14,6 +14,8 @@ A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it eas
 ---
 
 ## Features:
+* **Automatic or manual UI scaling** (FHD 1×, UHD 2× by default), with per-plugin, per-window and group overrides
+* Scrollable **Dropdown** and configurable step **Counter** controls
 * All UI elements are implemented as reusable helpers on top of standard Unity IMGUI
 * Quickly create draggable windows with flexible configuration for size, behavior, opacity, and more
 * Create styled UI elements such as buttons, checkboxes, sliders, input fields, and more
