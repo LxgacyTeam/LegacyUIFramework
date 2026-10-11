@@ -1,4 +1,4 @@
-### [Русский](./README_RU.md) | [> English <](./README.md) | [简体中文](./README_ZH.md)
+﻿### [Русский](./README_RU.md) | [> English <](./README.md) | [简体中文](./README_ZH.md)
 ---
 
 # LegacyUIFramework
@@ -10,7 +10,7 @@ A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it eas
 ### Full usage documentation is available in the [Wiki section](https://github.com/LxgacyTeam/LegacyUIFramework/wiki/Documentation-on-English)
 
 
-![preview image](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/preview.png?raw=true)
+![preview image](./img/preview.png)
 
 ---
 
@@ -24,7 +24,7 @@ A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it eas
 * Theme support, applied globally or to individual elements or groups of elements
 * `LegacyInput` — a reflection-based Legacy Input wrapper that lets one plugin build work across old and new Unity layouts of `UnityEngine.Input`
 
-![themes preview image](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/themes-preview.png?raw=true)
+![themes preview image](./img/themes-preview.png)
 
 ## Compatibility:
 

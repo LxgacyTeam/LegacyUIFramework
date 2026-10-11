@@ -9,7 +9,7 @@
 
 ### 完整使用文档请参阅[简体中文文档](./LegacyUIFramework_docs_ZH.md)
 
-![界面预览](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/preview.png?raw=true)
+![界面预览](./img/preview.png)
 
 ---
 
@@ -24,7 +24,7 @@
 * 支持主题，可全局应用，也可应用于单个元素或控件组
 * `LegacyInput`：基于反射的 Legacy Input 包装器，使同一次插件构建能够兼容新旧 Unity 中不同的 `UnityEngine.Input` 程序集布局
 
-![主题预览](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/img/themes-preview.png?raw=true)
+![主题预览](./img/themes-preview.png)
 
 ## 兼容性
 
