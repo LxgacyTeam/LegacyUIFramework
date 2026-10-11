@@ -1,7 +1,8 @@
-﻿# LegacyUIFramework
-
-### [README на Русском](https://github.com/LxgacyTeam/LegacyUIFramework/blob/main/docs/README_RU.md)
+### [Русский](./README_RU.md) | [> English <](./README.md) | [简体中文](./README_ZH.md)
 ---
+
+# LegacyUIFramework
+
 A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it easy to create draggable windows with styled UI elements. It runs on top of standard Unity IMGUI.
 
 **Developed as part of [BigCityLegacy](https://github.com/LxgacyTeam/BigCityLegacy) project, but usable independently by other BepInEx plugins and games.**

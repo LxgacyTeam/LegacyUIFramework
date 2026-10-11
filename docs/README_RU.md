@@ -1,4 +1,7 @@
-﻿# LegacyUIFramework
+### [> Русский <](./README_RU.md) | [English](./README.md) | [简体中文](./README_ZH.md)
+---
+
+# LegacyUIFramework
 
 Небольшая отдельная IMGUI-библиотека для Unity Mono/BepInEx-плагинов. Позволяет легко создавать перетаскиваемые окна со стилизованными UI элементами. Работает поверх обычного Unity IMGUI.
 
