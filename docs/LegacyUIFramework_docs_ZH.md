@@ -411,6 +411,95 @@ map.Draw(delegate(Rect content)
 >
 > `LegacyUIScrollView` 本身可以包含任意数量的动态 `LegacyUI` 元素。这里的限制具体涉及**位于动态变化内容之后的控件，其 IMGUI 调用顺序必须保持稳定**。
 
+### IMGUI 缩放
+
+在 `LegacyUIGuiScope` 内绘制的 UI **默认启用缩放**。继续使用普通设计像素单位的 `Rect` 坐标、窗口大小、`LegacyUILayout` 和 `LegacyUIScrollView`；框架通过 `GUI.matrix` 应用缩放变换。**不要**自行将矩形坐标乘以缩放系数。
+
+默认模式为 `Automatic`：`min(Screen.width / 1920, Screen.height / 1080) × BaseScale`，结果限制在 `MinScale..MaxScale` 范围内（默认 0.75–4）。当 `BaseScale=1` 时：1920×1080 → 1×，2560×1440 → 1.333×，3840×2160 → 2×。如需在 UHD 下使用 3×，请设置 `BaseScale=1.5`。
+
+建议**每个插件**使用独立设置对象，因为多个插件可能共享同一个框架程序集：
+
+```csharp
+private readonly LegacyUIScaleSettings uiScale = new LegacyUIScaleSettings();
+
+private void OnGUI()
+{
+    using (new LegacyUIGuiScope(-10000, uiScale))
+        window.Draw(DrawContent);
+}
+
+uiScale.Mode = LegacyUIScaleMode.Automatic;
+uiScale.BaseScale = 1.5f;
+
+// 也可以在任何屏幕上使用固定缩放系数：
+uiScale.Mode = LegacyUIScaleMode.Manual;
+uiScale.ManualScale = 1.25f;
+```
+
+未显式指定设置对象时，`LegacyUIGuiScope(-10000)` 使用共享的 `LegacyUI.ScaleSettings`（默认自动缩放）。`LegacyUI.Scale` 返回当前缩放系数；`LegacyUI.VirtualScreenSize` 提供设计像素单位的屏幕尺寸。`LegacyUI.MousePosition` 用于自定义鼠标命中检测。可拖动窗口和游戏输入拦截会考虑当前变换。
+
+`LegacyUIWindowOptions.ScaleMultiplier` 可缩放单个窗口（默认 1×）。对于单个元素或一组元素，使用：
+
+```csharp
+using (LegacyUI.WithScale(1.2f, new Vector2(buttonRect.x, buttonRect.y)))
+    LegacyUI.Button(buttonRect, "Large button");
+```
+
+`WithScale` **相对于**当前缩放生效；带 `pivot` 的重载会保持所选点的位置。`Dispose()` 始终恢复此前的矩阵。布局相邻控件时，请考虑放大后控件的视觉边界。
+
+请在 `Awake` 或字段中保留持久主题和有状态控件，**不要**在 `OnGUI` 内创建它们，以避免内存分配和原生纹理泄漏。
+
+### LegacyUIDropdown
+
+这是使用 `LegacyUIScrollView` 的有状态下拉控件：`PopupWidth` 控制展开弹出列表的宽度（0 表示与按钮同宽），`MaxHeight` 限制高度，超出的项目可以垂直滚动。通过 `SelectedIndex` 和 `SelectionChanged` 获取选择状态及变化。
+
+```csharp
+// Awake:
+dropdown = new LegacyUIDropdown(new[] { "Vanilla", "Sport", "Rally", "Drift" }, 0)
+{
+    PopupWidth = 260f,
+    MaxHeight = 110f,
+    ItemHeight = 27f
+};
+
+// OnGUI:
+using (new LegacyUIGuiScope(-10000, uiScale))
+{
+    dropdown.HandlePopupInput(); // 在底层 UI 之前调用，防止点击穿透
+    window.Draw(delegate(Rect area)
+    {
+        dropdown.Draw(new Rect(area.x, area.y + 60f, 210f, 27f));
+    });
+    dropdown.DrawPopup(); // 最后绘制，并放在 GUI.BeginScrollView 之外
+}
+```
+
+弹出列表必须在与锚点相同的根 GUI 坐标空间中**最后绘制**，并位于带裁剪的 `GUI.BeginGroup`/`GUI.BeginScrollView` 区域之外。对于现有 ScrollView 内的下拉控件，需要将锚点坐标转换到根 GUI 坐标。如果其他交互控件可能与弹出列表重叠，应先调用 `HandlePopupInput`。在不同 IMGUI 事件之间复用同一个下拉控件实例。
+
+### Counter
+
+**无状态整数步进控件：**
+
+```csharp
+quantity = LegacyUI.Counter(new Rect(15, 20, 200, 28), quantity,
+                            step: 5, minValue: 0, maxValue: 100);
+```
+
+**有状态、可编辑的浮点数步进控件：**
+
+```csharp
+// Awake:
+boost = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
+boost.NumberFormat = "0.00";
+
+// OnGUI:
+float selectedBoost = boost.Draw(new Rect(15, 60, 210, 28));
+```
+
+`Step` 决定递增/递减幅度。`MinValue`/`MaxValue` 对输入和按钮操作进行范围限制。输入数字使用固定区域性格式（小数点为句点）；设置 `AllowTyping=false` 可使中间的数值只读。可选的 `Theme` 改变计数器外观。结合 `WithScale` 可以放大控件或控件组。
+
+**IMGUI 控件 ID 注意事项：**在 `Layout`、`Repaint` 和输入事件之间，保持有状态控件的调用顺序一致。在文本输入框*之前*绘制数量可变的 ScrollView 按钮，可能破坏焦点和光标处理。请先绘制 `TextField` / `LegacyUICounter`，再绘制内容数量动态变化的 ScrollView；`Rect` 独立决定视觉位置，与调用顺序无关。
+
 ## 样式与主题
 
 需要时可以直接访问默认样式：
@@ -530,112 +619,3 @@ HintBox
 
 不要将大型可选 UI 辅助工具移回 BigCityLegacy 主插件。包含大量 UI 的新插件应引用 `LegacyUIFramework.dll`，并将自身的功能逻辑保留在独立程序集中。
 
----
-
-## 1.1.0 新增：缩放、Dropdown 和 Counter
-
-### IMGUI 缩放
-
-在 `LegacyUIGuiScope` 内绘制的 UI **默认启用缩放**。继续使用普通设计像素单位的 `Rect` 坐标、窗口大小、`LegacyUILayout` 和 `LegacyUIScrollView`；框架通过 `GUI.matrix` 应用缩放变换。**不要**自行将矩形坐标乘以缩放系数。
-
-默认模式为 `Automatic`：`min(Screen.width / 1920, Screen.height / 1080) × BaseScale`，结果限制在 `MinScale..MaxScale` 范围内（默认 0.75–4）。当 `BaseScale=1` 时：1920×1080 → 1×，2560×1440 → 1.333×，3840×2160 → 2×。如需在 UHD 下使用 3×，请设置 `BaseScale=1.5`。
-
-建议**每个插件**使用独立设置对象，因为多个插件可能共享同一个框架程序集：
-
-```csharp
-private readonly LegacyUIScaleSettings uiScale = new LegacyUIScaleSettings();
-
-private void OnGUI()
-{
-    using (new LegacyUIGuiScope(-10000, uiScale))
-        window.Draw(DrawContent);
-}
-
-uiScale.Mode = LegacyUIScaleMode.Automatic;
-uiScale.BaseScale = 1.5f;
-
-// 也可以在任何屏幕上使用固定缩放系数：
-uiScale.Mode = LegacyUIScaleMode.Manual;
-uiScale.ManualScale = 1.25f;
-```
-
-未显式指定设置对象时，`LegacyUIGuiScope(-10000)` 使用共享的 `LegacyUI.ScaleSettings`（默认自动缩放）。`LegacyUI.Scale` 返回当前缩放系数；`LegacyUI.VirtualScreenSize` 提供设计像素单位的屏幕尺寸。`LegacyUI.MousePosition` 用于自定义鼠标命中检测。可拖动窗口和游戏输入拦截会考虑当前变换。
-
-`LegacyUIWindowOptions.ScaleMultiplier` 可缩放单个窗口（默认 1×）。对于单个元素或一组元素，使用：
-
-```csharp
-using (LegacyUI.WithScale(1.2f, new Vector2(buttonRect.x, buttonRect.y)))
-    LegacyUI.Button(buttonRect, "Large button");
-```
-
-`WithScale` **相对于**当前缩放生效；带 `pivot` 的重载会保持所选点的位置。`Dispose()` 始终恢复此前的矩阵。布局相邻控件时，请考虑放大后控件的视觉边界。
-
-请在 `Awake` 或字段中保留持久主题和有状态控件，**不要**在 `OnGUI` 内创建它们，以避免内存分配和原生纹理泄漏。
-
-### LegacyUIDropdown
-
-这是使用 `LegacyUIScrollView` 的有状态下拉控件：`PopupWidth` 控制展开弹出列表的宽度（0 表示与按钮同宽），`MaxHeight` 限制高度，超出的项目可以垂直滚动。通过 `SelectedIndex` 和 `SelectionChanged` 获取选择状态及变化。
-
-```csharp
-// Awake:
-dropdown = new LegacyUIDropdown(new[] { "Vanilla", "Sport", "Rally", "Drift" }, 0)
-{
-    PopupWidth = 260f,
-    MaxHeight = 110f,
-    ItemHeight = 27f
-};
-
-// OnGUI:
-using (new LegacyUIGuiScope(-10000, uiScale))
-{
-    dropdown.HandlePopupInput(); // 在底层 UI 之前调用，防止点击穿透
-    window.Draw(delegate(Rect area)
-    {
-        dropdown.Draw(new Rect(area.x, area.y + 60f, 210f, 27f));
-    });
-    dropdown.DrawPopup(); // 最后绘制，并放在 GUI.BeginScrollView 之外
-}
-```
-
-弹出列表必须在与锚点相同的根 GUI 坐标空间中**最后绘制**，并位于带裁剪的 `GUI.BeginGroup`/`GUI.BeginScrollView` 区域之外。对于现有 ScrollView 内的下拉控件，需要将锚点坐标转换到根 GUI 坐标。如果其他交互控件可能与弹出列表重叠，应先调用 `HandlePopupInput`。在不同 IMGUI 事件之间复用同一个下拉控件实例。
-
-### Counter
-
-**无状态整数步进控件：**
-
-```csharp
-quantity = LegacyUI.Counter(new Rect(15, 20, 200, 28), quantity,
-                            step: 5, minValue: 0, maxValue: 100);
-```
-
-**有状态、可编辑的浮点数步进控件：**
-
-```csharp
-// Awake:
-boost = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
-boost.NumberFormat = "0.00";
-
-// OnGUI:
-float selectedBoost = boost.Draw(new Rect(15, 60, 210, 28));
-```
-
-`Step` 决定递增/递减幅度。`MinValue`/`MaxValue` 对输入和按钮操作进行范围限制。输入数字使用固定区域性格式（小数点为句点）；设置 `AllowTyping=false` 可使中间的数值只读。可选的 `Theme` 改变计数器外观。结合 `WithScale` 可以放大控件或控件组。
-
-**IMGUI 控件 ID 注意事项：**在 `Layout`、`Repaint` 和输入事件之间，保持有状态控件的调用顺序一致。在文本输入框*之前*绘制数量可变的 ScrollView 按钮，可能破坏焦点和光标处理。请先绘制 `TextField` / `LegacyUICounter`，再绘制内容数量动态变化的 ScrollView；`Rect` 独立决定视觉位置，与调用顺序无关。
-
-## 1.1.1 更新 — 缩放鼠标输入与 Counter 文本编辑
-
-- `LegacyUI.MousePosition` 现在直接返回当前 `Event.current.mousePosition`，不再重复应用 `GUI.matrix.inverse`。自定义 IMGUI 命中检测（窗口拖动、滑块、滚动条和下拉控件）必须使用 GUI 空间的事件坐标。此前的额外转换会在非 1× 缩放下导致命中区域偏移。原始 `LegacyInput.MousePosition` 仍是以左下角为原点的物理屏幕输入，不适合在裁剪区域内直接用于 GUI `Rect.Contains` 检测。
-- `LegacyUICounter.Draw` 保留独立于已提交 `Value` 的**草稿字符串**。编辑时允许任意中间文本，包括 `-`、`1.` 和空字符串。**只有**在按 Enter、GUI 焦点变化或用户在输入框外单击鼠标左键时，才会解析数值并限制范围。`1.25` 和 `1,25` 均可接受。无效输入会恢复上次提交的值。
-- Counter 先绘制文本输入框，再绘制按钮，以稳定 IMGUI 控件 ID；文本编辑器拥有焦点期间绝不重新格式化草稿，从而保留插入光标和选区。
-- 示例插件的缩放滑块会在释放鼠标后应用更改，因此拖动过程中滑块自身的变换不会移动。`Reset 1x` 和 `F8` 可恢复手动 1× 缩放。
-
-```csharp
-// 只创建一次状态，不要在 OnGUI 内创建。
-counter = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
-
-// 草稿编辑在提交前不会改变 Value。
-float confirmedValue = counter.Draw(new Rect(20f, 20f, 180f, 28f));
-```
-
-**注意：**Unity IMGUI 要求在 `Layout`、`Repaint`、`MouseDown` 和 `KeyDown` 之间保持 GUI 控件顺序一致；请保留 Counter 实例，并避免在编辑时动态改变此前控件的数量。

@@ -412,6 +412,100 @@ map.Draw(delegate(Rect content)
 >
 > Сам `LegacyUIScrollView` при этом может содержать любое количество динамических `LegacyUI`-элементов. Ограничение относится именно к **стабильности порядка IMGUI controls, расположенных после динамически изменяющегося содержимого**.
 
+### Масштабирование IMGUI
+
+Масштабирование включено **по умолчанию** для всех контролов, рисуемых внутри `LegacyUIGuiScope`. Координаты `Rect`, размеры окон, `LegacyUILayout` и размеры `ScrollView` задаются **в виртуальных пикселях**, как и раньше. Библиотека применяет к их отрисовке общую матрицу `GUI.matrix`. Не умножайте `Rect` на коэффициент вручную.
+
+По умолчанию режим `Automatic`: `min(Screen.width / 1920, Screen.height / 1080) × BaseScale`, ограниченный диапазоном `MinScale..MaxScale` (по умолчанию 0.75–4.0). Примеры при `BaseScale = 1`: FHD 1920×1080 → 1×, QHD 2560×1440 → 1.333×, UHD 3840×2160 → 2×. Для UHD 3× можно поставить `BaseScale = 1.5f`.
+
+Настройки лучше хранить **отдельно для каждого плагина** (DLL framework может быть общей между несколькими плагинами):
+
+```csharp
+private readonly LegacyUIScaleSettings uiScale = new LegacyUIScaleSettings();
+
+private void OnGUI()
+{
+    using (new LegacyUIGuiScope(-10000, uiScale))
+    {
+        window.Draw(DrawContent);
+    }
+}
+
+// Настроить в Awake, из config, меню либо в любой удобный момент:
+uiScale.Mode = LegacyUIScaleMode.Automatic;
+uiScale.BaseScale = 1.5f;
+
+// Альтернатива — точный коэффициент без привязки к разрешению:
+uiScale.Mode = LegacyUIScaleMode.Manual;
+uiScale.ManualScale = 1.25f;
+```
+
+Если не передавать `uiScale`, `LegacyUIGuiScope(-10000)` использует глобальные `LegacyUI.ScaleSettings` (по умолчанию automatic). `LegacyUI.Scale` возвращает эффективный коэффициент внутри текущего scope, `LegacyUI.VirtualScreenSize` — доступный размер экрана в виртуальных пикселях. `LegacyUI.MousePosition` предназначен для собственных обработчиков мыши. Стандартные окна, ползунки и input blocker автоматически учитывают масштаб.
+
+Для отдельного окна доступен `LegacyUIWindowOptions.ScaleMultiplier` (по умолчанию 1×). Для группы/элемента:
+
+```csharp
+using (LegacyUI.WithScale(1.2f, new Vector2(buttonRect.x, buttonRect.y)))
+{
+    LegacyUI.Button(buttonRect, "Large button");
+}
+```
+
+`WithScale` задаёт **относительный** множитель. Перегрузка с `pivot` сохраняет позицию опорной точки. Вложенные scopes перемножаются и автоматически возвращают прежнее `GUI.matrix` по `Dispose()`. Для размещения соседних увеличенных элементов в своём layout учитывайте занимаемое ими экранное пространство.
+
+Не создавайте темы или stateful-контролы в `OnGUI()`; храните их как поля компонента, иначе можно получить лишние managed-аллокации и утечки нативных ресурсов Unity.
+
+### LegacyUIDropdown
+
+`LegacyUIDropdown` — stateful-контрол с постоянной шириной выпадающего списка (`PopupWidth`, 0 = ширина кнопки) и ограничением высоты (`MaxHeight`). Если вариантов больше, чем помещается, появляется прокрутка на базе `LegacyUIScrollView`. Выбранный индекс доступен через `SelectedIndex`, и событие `SelectionChanged` вызывается при изменении.
+
+```csharp
+// Awake:
+dropdown = new LegacyUIDropdown(new[] { "Vanilla", "Sport", "Rally", "Drift" }, 0)
+{
+    PopupWidth = 260f,
+    MaxHeight = 110f,
+    ItemHeight = 27f
+};
+
+// OnGUI:
+using (new LegacyUIGuiScope(-10000, uiScale))
+{
+    dropdown.HandlePopupInput(); // ДО остальных контролов, чтобы избежать click-through
+    window.Draw(delegate(Rect area)
+    {
+        dropdown.Draw(new Rect(area.x, area.y + 60f, 210f, 27f));
+    });
+    dropdown.DrawPopup(); // ПОСЛЕ всего UI и ВНЕ GUI.BeginScrollView
+}
+```
+
+`DrawPopup()` должен отрисовываться в том же координатном пространстве, что и `Draw()`, **последним**, вне clipping-областей `GUI.BeginScrollView/GUI.BeginGroup`. Внутри scrollview можно размещать кнопку-якорь только если вручную преобразовать координаты якоря в координаты внешнего GUI; проще располагать dropdown за пределами scrollview. `HandlePopupInput()` рекомендуется вызвать в начале OnGUI, чтобы контролы позади popup не перехватывали клики. При изменении списка используйте `Items`, не создавая новый dropdown каждый кадр.
+
+### Counter
+
+**Простой целочисленный счётчик** без состояния:
+
+```csharp
+quantity = LegacyUI.Counter(new Rect(15, 20, 200, 28), quantity,
+                            step: 5, minValue: 0, maxValue: 100);
+```
+
+**Редактируемый числовой счётчик** с отдельным состоянием:
+
+```csharp
+// Awake:
+boost = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
+boost.NumberFormat = "0.00";
+
+// OnGUI:
+float selectedBoost = boost.Draw(new Rect(15, 60, 210, 28));
+```
+
+`Step` — цена одного нажатия ±; `MinValue` и `MaxValue` ограничивают значение. Значение можно вводить вручную (invariant формат с точкой); для запрета ввода установите `AllowTyping = false`. Опциональная `Theme` применяется только к счётчику. Для локального увеличения — `WithScale(...)`.
+
+**Важно для IMGUI:** порядок stateful-контролов должен совпадать между `Layout`, `Repaint` и input events. Изменяемое количество кнопок в `ScrollView` перед `TextField`/`Counter` может сбросить caret/focus. Вызывайте поле ввода до динамического scrollview (визуальное расположение определяется `Rect`).
+
 
 ## Styles и тема
 
@@ -531,119 +625,3 @@ Input block mode switcher
 ## Правило интеграции для BigCityLegacy
 
 Не переносить крупные необязательные UI helpers обратно в основной плагин BigCityLegacy. Новые плагины с большим количеством UI должны ссылаться на `LegacyUIFramework.dll` и хранить свою feature-логику в отдельных assemblies.
-
----
-
-## Новое в 1.1.0: масштабирование, Dropdown, Counter
-
-### Масштабирование IMGUI
-
-Масштабирование включено **по умолчанию** для всех контролов, рисуемых внутри `LegacyUIGuiScope`. Координаты `Rect`, размеры окон, `LegacyUILayout` и размеры `ScrollView` задаются **в виртуальных пикселях**, как и раньше. Библиотека применяет к их отрисовке общую матрицу `GUI.matrix`. Не умножайте `Rect` на коэффициент вручную.
-
-По умолчанию режим `Automatic`: `min(Screen.width / 1920, Screen.height / 1080) × BaseScale`, ограниченный диапазоном `MinScale..MaxScale` (по умолчанию 0.75–4.0). Примеры при `BaseScale = 1`: FHD 1920×1080 → 1×, QHD 2560×1440 → 1.333×, UHD 3840×2160 → 2×. Для UHD 3× можно поставить `BaseScale = 1.5f`.
-
-Настройки лучше хранить **отдельно для каждого плагина** (DLL framework может быть общей между несколькими плагинами):
-
-```csharp
-private readonly LegacyUIScaleSettings uiScale = new LegacyUIScaleSettings();
-
-private void OnGUI()
-{
-    using (new LegacyUIGuiScope(-10000, uiScale))
-    {
-        window.Draw(DrawContent);
-    }
-}
-
-// Настроить в Awake, из config, меню либо в любой удобный момент:
-uiScale.Mode = LegacyUIScaleMode.Automatic;
-uiScale.BaseScale = 1.5f;
-
-// Альтернатива — точный коэффициент без привязки к разрешению:
-uiScale.Mode = LegacyUIScaleMode.Manual;
-uiScale.ManualScale = 1.25f;
-```
-
-Если не передавать `uiScale`, `LegacyUIGuiScope(-10000)` использует глобальные `LegacyUI.ScaleSettings` (по умолчанию automatic). `LegacyUI.Scale` возвращает эффективный коэффициент внутри текущего scope, `LegacyUI.VirtualScreenSize` — доступный размер экрана в виртуальных пикселях. `LegacyUI.MousePosition` предназначен для собственных обработчиков мыши. Стандартные окна, ползунки и input blocker автоматически учитывают масштаб.
-
-Для отдельного окна доступен `LegacyUIWindowOptions.ScaleMultiplier` (по умолчанию 1×). Для группы/элемента:
-
-```csharp
-using (LegacyUI.WithScale(1.2f, new Vector2(buttonRect.x, buttonRect.y)))
-{
-    LegacyUI.Button(buttonRect, "Large button");
-}
-```
-
-`WithScale` задаёт **относительный** множитель. Перегрузка с `pivot` сохраняет позицию опорной точки. Вложенные scopes перемножаются и автоматически возвращают прежнее `GUI.matrix` по `Dispose()`. Для размещения соседних увеличенных элементов в своём layout учитывайте занимаемое ими экранное пространство.
-
-Не создавайте темы или stateful-контролы в `OnGUI()`; храните их как поля компонента, иначе можно получить лишние managed-аллокации и утечки нативных ресурсов Unity.
-
-### LegacyUIDropdown
-
-`LegacyUIDropdown` — stateful-контрол с постоянной шириной выпадающего списка (`PopupWidth`, 0 = ширина кнопки) и ограничением высоты (`MaxHeight`). Если вариантов больше, чем помещается, появляется прокрутка на базе `LegacyUIScrollView`. Выбранный индекс доступен через `SelectedIndex`, и событие `SelectionChanged` вызывается при изменении.
-
-```csharp
-// Awake:
-dropdown = new LegacyUIDropdown(new[] { "Vanilla", "Sport", "Rally", "Drift" }, 0)
-{
-    PopupWidth = 260f,
-    MaxHeight = 110f,
-    ItemHeight = 27f
-};
-
-// OnGUI:
-using (new LegacyUIGuiScope(-10000, uiScale))
-{
-    dropdown.HandlePopupInput(); // ДО остальных контролов, чтобы избежать click-through
-    window.Draw(delegate(Rect area)
-    {
-        dropdown.Draw(new Rect(area.x, area.y + 60f, 210f, 27f));
-    });
-    dropdown.DrawPopup(); // ПОСЛЕ всего UI и ВНЕ GUI.BeginScrollView
-}
-```
-
-`DrawPopup()` должен отрисовываться в том же координатном пространстве, что и `Draw()`, **последним**, вне clipping-областей `GUI.BeginScrollView/GUI.BeginGroup`. Внутри scrollview можно размещать кнопку-якорь только если вручную преобразовать координаты якоря в координаты внешнего GUI; проще располагать dropdown за пределами scrollview. `HandlePopupInput()` рекомендуется вызвать в начале OnGUI, чтобы контролы позади popup не перехватывали клики. При изменении списка используйте `Items`, не создавая новый dropdown каждый кадр.
-
-### Counter
-
-**Простой целочисленный счётчик** без состояния:
-
-```csharp
-quantity = LegacyUI.Counter(new Rect(15, 20, 200, 28), quantity,
-                            step: 5, minValue: 0, maxValue: 100);
-```
-
-**Редактируемый числовой счётчик** с отдельным состоянием:
-
-```csharp
-// Awake:
-boost = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
-boost.NumberFormat = "0.00";
-
-// OnGUI:
-float selectedBoost = boost.Draw(new Rect(15, 60, 210, 28));
-```
-
-`Step` — цена одного нажатия ±; `MinValue` и `MaxValue` ограничивают значение. Значение можно вводить вручную (invariant формат с точкой); для запрета ввода установите `AllowTyping = false`. Опциональная `Theme` применяется только к счётчику. Для локального увеличения — `WithScale(...)`.
-
-**Важно для IMGUI:** порядок stateful-контролов должен совпадать между `Layout`, `Repaint` и input events. Изменяемое количество кнопок в `ScrollView` перед `TextField`/`Counter` может сбросить caret/focus. Вызывайте поле ввода до динамического scrollview (визуальное расположение определяется `Rect`).
-
-
-## Исправления в 1.1.1 — мышь при масштабировании и ввод Counter
-
-- `LegacyUI.MousePosition` теперь отдаёт позицию из текущего `Event.current.mousePosition` **без дополнительного `GUI.matrix.inverse`**. Для ручных IMGUI hit-test'ов (`LegacyUIWindow` drag, ползунки, scrollbars, dropdown) нужны координаты в текущем GUI-пространстве; двойное преобразование смещало области взаимодействия при масштабе, отличном от 1x. Внешние (сырые) координаты `LegacyInput.MousePosition` по-прежнему в пикселях экрана с началом снизу слева и не подходят напрямую для `Rect.Contains` внутри GUI/ScrollView.
-- `LegacyUICounter.Draw` сохраняет **черновик текста** отдельно от `Value`. Во время ввода допускаются любые промежуточные строки: `-`, `1.`, пустая строка и т. п. Числовое значение изменяется **только** после Enter, потери GUI-фокуса или клика левой кнопкой вне поля. Поддерживаются `1.25` и `1,25`; некорректный текст возвращается к последнему подтверждённому значению. Min/Max применяются при подтверждении.
-- Внутри Counter поле ввода рисуется **до кнопок** для более стабильного порядка IMGUI control ID; редактирование не перезаписывает каретку и выделенный диапазон новым отформатированным числом.
-- В Example слайдер масштаба теперь применяет изменение при отпускании мыши: сам интерфейс не «убегает» из-под курсора в процессе drag. Кнопка `Reset 1x` и клавиша `F8` устанавливают ручной масштаб 1x.
-
-```csharp
-// Состояние создаётся один раз, НЕ внутри OnGUI.
-counter = new LegacyUICounter(1.5f, 0.25f, 0f, 10f);
-
-// Редактирование — свободный текст; Value изменяется только после подтверждения.
-float confirmedValue = counter.Draw(new Rect(20f, 20f, 180f, 28f));
-```
-
-**Важно:** Unity IMGUI должен вызывать `Draw` в стабильном порядке на событиях `Layout`, `Repaint`, `MouseDown` и `KeyDown`; не создавайте Counter каждый кадр и не меняйте число предшествующих GUI-контролов посреди редактирования.
