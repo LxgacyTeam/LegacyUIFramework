@@ -20,9 +20,11 @@ namespace BigCityLegacy.UI
             if (float.IsNaN(factor) || float.IsInfinity(factor) || factor <= 0f)
                 factor = 1f;
             LegacyUI.ActiveScale = previousScale * factor;
-            GUI.matrix = previousMatrix * Matrix4x4.Translate(new Vector3(pivot.x, pivot.y, 0f))
+            // TRS with identity rotation/scale is a translation matrix on Unity 4.6+;
+            // Matrix4x4.Translate is unavailable in older monolithic UnityEngine.dll.
+            GUI.matrix = previousMatrix * Matrix4x4.TRS(new Vector3(pivot.x, pivot.y, 0f), Quaternion.identity, Vector3.one)
                       * Matrix4x4.Scale(new Vector3(factor, factor, 1f))
-                      * Matrix4x4.Translate(new Vector3(-pivot.x, -pivot.y, 0f));
+                      * Matrix4x4.TRS(new Vector3(-pivot.x, -pivot.y, 0f), Quaternion.identity, Vector3.one);
         }
 
         public void Dispose()
