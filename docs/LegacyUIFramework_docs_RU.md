@@ -202,7 +202,7 @@ public sealed class MyUiPlugin : BaseUnityPlugin
 
     private void OnGUI()
     {
-        if (window == null || !window.Visible) return;
+        if (window == null || !window.IsRendered) return;
 
         using (new LegacyUIGuiScope(-10000))
         {
@@ -250,7 +250,9 @@ new LegacyUIWindowOptions
 
 Если включён `FadeWhileDragging`, окно и все дочерние IMGUI-элементы рисуются с уменьшенной прозрачностью во время перетаскивания за заголовок.
 
-`BackgroundAlpha` меняет только прозрачность фона окна. Если значение равно `null`, используется прозрачность из текущей темы.
+`BackgroundAlpha` задаёт базовую прозрачность фона окна. Если значение равно `null`, при `BackdropBlur = true` используется `1f`, а при отключённом блюре — прозрачность из текущей темы. Явно заданное значение, включая `0f`, сохраняется. `BlurTintAlpha` по умолчанию равен `0.75f` и умножает прозрачность фона только при успешной отрисовке блюра; без доступного блюра фон рисуется с базовой прозрачностью. Значение по умолчанию вычисляется при отрисовке, поэтому переключение `BackdropBlur` не перезаписывает `BackgroundAlpha`.
+
+Неявное значение `1f` и множитель `BlurTintAlpha` относятся только к фону самого окна. Вложенные панели (`LegacyUI.Panel` и фон `LegacyUIScrollView`) при незаданном `BackgroundAlpha` окна используют прозрачность своей текущей темы. Если `BackgroundAlpha` окна задан явно, панели наследуют это значение без множителя блюра; собственный `BackgroundAlpha` панели или ScrollView имеет приоритет. Наследование ограничено вызовом `window.Draw`: вложенное окно задаёт свой контекст, а при возврате или исключении восстанавливается предыдущий. Прозрачность анимации открытия и перетаскивания по-прежнему применяется ко всему содержимому.
 
 `Theme` необязателен. Если он задан, только это окно и его содержимое рисуются в указанной теме. Глобальная тема framework не меняется.
 
@@ -356,6 +358,8 @@ map.Draw(delegate(Rect content)
 ```
 
 `UseAutoContentSize()` возвращает динамический расчёт, а `ResetScroll()` сбрасывает прокрутку в левый верхний угол. `ShowHorizontalScrollbar` и `ShowVerticalScrollbar` управляют тем, какие оси резервируют место и рисуют стилизованные scrollbars framework. Для отдельного экземпляра также доступны `ScrollbarSize`, `ScrollbarSpacing`, `DrawBackground`, `BackgroundAlpha`, `ScrollPosition` и `Theme`.
+
+Фон `LegacyUIScrollView` рисуется с непрозрачностью `Mathf.Clamp01(alpha) * 0.75f`, то есть на 25% ниже базового значения. Сначала выбирается собственный `BackgroundAlpha` ScrollView, затем явно заданный `BackgroundAlpha` содержащего окна, иначе `WindowBackground.a` текущей темы ScrollView. Например, `0.8f` даёт фон `0.6f`, а значение темы `0.85f` — `0.6375f`. Множитель влияет только на фон ScrollView, не на содержимое, рамку или полосы прокрутки; исходные настройки и палитра не изменяются.
 
 > [!WARNING]
 > **Warning — порядок объявления IMGUI-элементов рядом со ScrollView**
@@ -625,3 +629,129 @@ Input block mode switcher
 ## Правило интеграции для BigCityLegacy
 
 Не переносить крупные необязательные UI helpers обратно в основной плагин BigCityLegacy. Новые плагины с большим количеством UI должны ссылаться на `LegacyUIFramework.dll` и хранить свою feature-логику в отдельных assemblies.
+
+## Анимации
+
+Анимации включены по умолчанию: окна и dropdown плавно появляются и исчезают, прозрачность при перетаскивании плавно меняется до `DragAlpha` и обратно, Toggle плавно меняет состояние, кнопки, вкладки, поля и ползунки реагируют на наведение. Длительности заданы в реальных секундах: пауза через `Time.timeScale = 0` не останавливает анимации. Нулевая длительность отключает отдельный переход, `Enabled = false` — все переходы данного объекта настроек.
+
+```csharp
+private readonly LegacyUIAnimationSettings animations = new LegacyUIAnimationSettings
+{
+    Enabled = true,
+    WindowDuration = 0.18f,
+    DragDuration = 0.12f,
+    DropdownDuration = 0.14f,
+    ToggleDuration = 0.12f,
+    HoverDuration = 0.12f
+};
+
+// OnGUI: plugin defaults are scoped; other plugins keep their own settings.
+using (new LegacyUIGuiScope(-10000, scaleSettings, animations))
+{
+    window.Draw(DrawContent);
+}
+
+// Optional per-window override:
+window.Options.Animations = new LegacyUIAnimationSettings { WindowDuration = 0.3f };
+// Or change the shared defaults outside plugin-specific scopes:
+LegacyUI.AnimationSettings.Enabled = false;
+```
+
+`LegacyUI.WithAnimations(settings)` задаёт настройки для группы элементов. `LegacyUIWindowOptions.Animations` переопределяет настройки плагина; null наследует их. У dropdown есть собственное свойство `Animations`, по умолчанию наследуемое от якоря. Выход из scope восстанавливает настройки и GUI-состояние, в том числе при исключении.
+
+`Visible` обозначает логическую видимость. Вызывайте `window.Draw(...)` на каждом проходе OnGUI или проверяйте `window.IsRendered`, чтобы fade-out успел закончиться. Не отключайте MonoBehaviour непосредственно в `Closed`: дождитесь `IsRendered == false`. Событие `Closed` по-прежнему вызывается сразу, а настройки сохраняют логическую видимость. Во время закрытия контент рисуется с отключённым вводом. `Opacity` возвращает текущую прозрачность окна. Dropdown сохраняет масштаб, тему и прозрачность якоря; вызывайте `DrawPopup()` последним, вне scroll-клипов, а `HandlePopupInput()` — перед окном.
+
+## Прогрессбар
+
+`LegacyUI.ProgressBar(rect, value, min, max, label)` отображает измеряемое значение. Для привязки через `Func<double>` используйте экземпляр `LegacyUIProgressBar` и `ValueProvider`; без callback используется поле `Value`. `Min` и `Max` можно менять между кадрами. Callback выполняется в GUI-потоке. Значение ограничивается диапазоном; поддерживается обратный диапазон. При равных границах или некорректном числе полоса пуста. Double позволяет работать с большими размерами загрузок. Элемент не принимает ввод и учитывается автоматическим расчётом ScrollView.
+
+```csharp
+LegacyUI.ProgressBar(new Rect(20, 90, 260, 22), health, 0d, 100d, "HP");
+
+// Keep this instance across GUI calls:
+var download = new LegacyUIProgressBar
+{
+    Min = 0d,
+    Max = totalBytes,
+    ValueProvider = () => downloadedBytes,
+    ShowPercentage = true
+};
+// OnGUI:
+download.Draw(new Rect(20, 120, 260, 22));
+
+var palette = new LegacyUIPalette { ProgressFill = Color.green, ProgressTrack = Color.black };
+var theme = new LegacyUITheme(palette);
+using (LegacyUI.WithTheme(theme)) LegacyUI.ProgressBar(rect, currentValue, minimum, maximum);
+```
+
+Цвета задаются отдельно от кнопок и слайдеров: `LegacyUIPalette.ProgressFill` и `ProgressTrack`. По умолчанию подпись показывает процент; `ShowPercentage = false` скрывает её, `Label` задаёт свой текст. Прогрессбар и анимации доступны в основной и net35-сборках.
+
+## Модуль блюра для MadOut2
+
+Проект `src/LegacyUIFramework.Blur/LegacyUIFramework.Blur.csproj` собирает **LegacyUIFramework.Blur.dll** — необязательный модуль исключительно для **MadOut2 9.4**, использующего Built-in Render Pipeline. У модуля нет net35-сборки. Основная библиотека содержит только интерфейс `ILegacyUIBackdrop` и работает без этого модуля. BigCityLegacy подключает его на поддерживаемом клиенте; на dedicated/headless сервере он не создаётся.
+
+```csharp
+using BigCityLegacy.UI.Blur;
+
+// MadOut2 9.4 client only; host owns the provider's lifetime:
+LegacyBclBlur backdrop = LegacyBclBlur.Create(gameObject);
+using (new LegacyUIGuiScope(-10000, scaleSettings, animations, backdrop))
+    window.Draw(DrawContent);
+
+window.Options.BackdropBlur = false; // disable for one window
+window.Options.BlurTintAlpha = 0.75f;
+// Or set window.Options.Backdrop to a specific ILegacyUIBackdrop provider.
+```
+
+Модуль использует реальную `Cam.me.unityCam` с запасным вариантом Camera.main. Добавленный image effect получает изображение до IMGUI и передаёт исходную сцену дальше без изменений. Основная камера пригодна для захвата и при рендере в `MainRenderTexture`: GameUI выводит эту текстуру на весь экран, поэтому координаты окон рассчитываются по размерам экрана независимо от масштаба рендера сцены. Другие камеры с offscreen-текстурами исключены. При прямом рендере на экран учитывается viewport камеры. Для блюра используется ссылка на штатный шейдер BlurBehind, его проход 0 и параметр `_Parameter`, с отдельным материалом. Состояние, настройки и глобальные shader-параметры штатного Canvas BlurBehind не изменяются. Восстановленный исходник шейдера является заглушкой реконструкции и не подменяет игровой шейдер.
+
+Все окна используют общую уменьшенную текстуру; по умолчанию каждая сторона уменьшена в 4 раза. Настройки провайдера: `Downsample` (1–8), `Iterations` (0–4), `Radius` (0–8). Фрагмент фона следует за окном с учётом масштаба, viewport камеры и направления Y. При изменении разрешения или камеры ресурсы пересоздаются; при отсутствии окон, отключении или уничтожении освобождаются. Без подходящей камеры/шейдера или за пределами viewport используется обычный фон темы. `BlurTintAlpha` умножает прозрачность тонировки только при наличии блюра. Контент окна остаётся чётким.
+
+### Состояние перетаскивания и ввод камеры
+
+`window.isDragging` и `window.IsDragging` — read-only имена одного состояния захваченного перетаскивания заголовка. Состояние становится true при захвате заголовка левой кнопкой и сбрасывается при отпускании левой кнопки, закрытии окна, событии Ignore, отключении `Draggable` или обнаружении отпускания за пределами GUI. Отпускание другой кнопки не завершает перетаскивание левой. Флаг не зависит от анимации DragAlpha и не остаётся true во время возврата прозрачности.
+
+`window.IsDragHandleAtScreenPoint(point)` проверяет последний отрисованный заголовок в физических пикселях экрана. Начало координат — снизу слева, как у Unity `Input.mousePosition`. Учитываются масштаб GUI/окна и область кнопки закрытия, которая исключена из захвата. Это позволяет игре исключить начальное нажатие из ввода камеры ещё до OnGUI, а через `isDragging` блокировать вращение на всём протяжении жеста. Эти проверки не создают экземпляры окон.
+
+### BCL и Example-плагин
+
+Блюр с более прозрачной тонировкой фона используется в окнах About, Server Connection, профиля игрока, апдейтера, VinylPort и его подтверждениях. Оверлей производительности также использует общий фон. У PointTool блюр явно отключён. При недоступности провайдера сохраняется обычный фон каждого окна.
+
+Example-плагин имеет мягкую зависимость от BCL. При его наличии он получает компонент `ILegacyUIBackdrop` с объекта BCL и использует ту же текстуру захвата, без жёсткой зависимости от DLL BCL или Blur при сборке. Без BCL пример остаётся самостоятельным. В net35-примере эта интеграция также необязательна; совместимый провайдер там обычно отсутствует.
+
+### Диагностика блюра
+
+В BCL диагностика блюра включена по умолчанию. Сообщения имеют префикс `[BCL Blur]` и попадают в `BepInEx/LogOutput.log` с уровнем Info. Настройка находится в `BepInEx/config/com.bigcitylegacy.baseplugin.cfg`:
+
+```ini
+[UI]
+BlurDiagnostics = true
+```
+
+При запуске записываются реальные пути и версии загруженных DLL библиотеки/модуля, ревизия диагностики, версии игры/Unity и графический API. Далее видны окно и GUI-событие, отсутствие провайдера или отключение блюра у окна, выбор камеры и её пригодность для рендера, источник/поддержка/число проходов шейдера, размеры текстур, вызовы image effect, выход за viewport и успешная отрисовка. Сводка раз в пять секунд сопоставляет Repaint окон, запросы фона, pre-render камеры, полученные image callbacks и завершённые захваты. Состояние `repaint-consumed-before-backdrop` отличает Repaint, поглощённый до фона, от обычного Layout-прохода.
+
+Одинаковые состояния не повторяются каждый кадр; частота смены состояний ограничена по этапам. Диагностика не считывает пиксели с GPU и не сохраняет скриншоты. `BlurDiagnostics = false` отключает эти записи. Другой хост может использовать `LegacyBclBlur.Create(host, logCallback, diagnosticsEnabled)`, `DiagnosticsEnabled` и `DiagnosticLog`. Основная библиотека только передаёт `LegacyUIBackdropDiagnosticInfo` провайдерам с интерфейсом `ILegacyUIBackdropDiagnostics` и не зависит от конкретного логгера.
+
+Для отчёта сохраните лог с начала запуска, откройте About или VinylPort и оставьте окно видимым на 10–15 секунд перед копированием лога. Записи описывают конвейер, не меняя настройки блюра и не выбирая другую камеру автоматически.
+
+### Визуальные настройки HintBoxAlt
+
+`LegacyUIHintBox` — состояние HintBoxAlt с `Visible`, `IsRendered`, `Opacity`, `Rect` и `Options`. Настройки `LegacyUIHintBoxOptions`: Theme, Animations (null наследует глобальные/scoped), Backdrop, BackdropBlur, BlurTintAlpha, BackgroundAlpha, BackgroundColor, ScaleMultiplier, Padding, DrawBorder и InputBlockMode. Цвет по умолчанию берётся из HintBackgroundAlt текущей темы. При включённом блюре неявная прозрачность фона равна 1; явно заданный BackgroundAlpha либо alpha собственного BackgroundColor имеет приоритет. BlurTintAlpha умножает фон только при успешном блюре. Контент остаётся чётким, а fade действует на весь блок по реальному времени. Draw восстанавливает GUI.color, GUI.enabled, тему и масштаб.
+
+Существующий `LegacyUI.HintBoxAlt(rect, text)` использует fade-in и доступный провайдер блюра. `LegacyUI.StyledHintBoxAlt(rect, text, options)` предоставляет те же параметры в статическом вызове. Для управляемого fade-out используйте экземпляр: после Visible = false продолжайте Draw до IsRendered = false. Статический вызов не может рисовать fade-out после прекращения вызовов. Уменьшайте доступный virtual screen на ScaleMultiplier при самостоятельном вычислении положения. Модуль блюра остаётся отдельным, основная реализация HintBox работает также в net35.
+
+```csharp
+var hint = new LegacyUIHintBox(new Rect(20, 20, 400, 90), new LegacyUIHintBoxOptions
+{
+    BackdropBlur = true,
+    BlurTintAlpha = 0.75f,
+    BackgroundAlpha = 1f,
+    BackgroundColor = new Color(0.03f, 0.03f, 0.04f, 1f),
+    ScaleMultiplier = 1.5f,
+    Animations = new LegacyUIAnimationSettings { WindowDuration = 0.2f }
+});
+// In OnGUI, also after setting Visible = false:
+if (hint.IsRendered) hint.Draw("Text");
+// A callback allows custom content inside the padding:
+hint.Draw("", area => LegacyUI.Label(area, "Custom content"));
+```

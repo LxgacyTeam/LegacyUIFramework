@@ -16,6 +16,8 @@ namespace BigCityLegacy.UI
         private readonly bool enabled;
         private readonly int depth;
         private bool disposed;
+        private readonly LegacyUIAnimationScope animations;
+        private readonly ILegacyUIBackdrop backdrop;
 
         public LegacyUIGuiScope(int depth = -10000)
             : this(depth, null)
@@ -24,7 +26,14 @@ namespace BigCityLegacy.UI
 
         /// <summary>Use a distinct settings instance for each plugin sharing this framework DLL.</summary>
         public LegacyUIGuiScope(int depth, LegacyUIScaleSettings settings)
+            : this(depth, settings, null, null) { }
+
+        public LegacyUIGuiScope(int depth, LegacyUIScaleSettings settings,
+            LegacyUIAnimationSettings animationSettings, ILegacyUIBackdrop backdrop = null)
         {
+            animations = new LegacyUIAnimationScope(animationSettings, null);
+            this.backdrop = LegacyUI.ActiveBackdrop;
+            LegacyUI.ActiveBackdrop = backdrop;
             matrix = GUI.matrix;
             previousScale = LegacyUI.ActiveScale;
             color = GUI.color;
@@ -48,6 +57,8 @@ namespace BigCityLegacy.UI
             if (disposed) return;
             disposed = true;
 
+            LegacyUI.ActiveBackdrop = backdrop;
+            animations.Dispose();
             GUI.depth = depth;
             GUI.enabled = enabled;
             GUI.backgroundColor = backgroundColor;

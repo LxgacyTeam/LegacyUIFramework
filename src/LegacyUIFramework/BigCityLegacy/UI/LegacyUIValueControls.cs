@@ -22,7 +22,9 @@ namespace BigCityLegacy.UI
             Rect thumb = new Rect(rect.x + usable * normalized, rect.y + (rect.height - thumbHeight) * 0.5f, thumbWidth, thumbHeight);
 
             Event ev = Event.current;
-            if (ev != null)
+            if (!GUI.enabled && GUIUtility.hotControl == id)
+            { GUIUtility.hotControl = 0; activeControlId = 0; }
+            if (ev != null && GUI.enabled)
             {
                 switch (ev.GetTypeForControl(id))
                 {
@@ -57,7 +59,7 @@ namespace BigCityLegacy.UI
             if (Event.current == null || Event.current.type == EventType.Repaint)
             {
                 GUI.Box(track, GUIContent.none, LegacyUI.Styles.HorizontalSlider);
-                GUI.Box(thumb, GUIContent.none, LegacyUI.Styles.HorizontalSliderThumb);
+                LegacyUIAnimatedControls.Thumb(id, thumb, LegacyUI.Styles.HorizontalSliderThumb, LegacyUI.Textures.SliderThumbHover);
             }
 
             return Mathf.Clamp(value, min, max);
@@ -78,7 +80,9 @@ namespace BigCityLegacy.UI
             Rect thumb = new Rect(rect.x + (rect.width - thumbWidth) * 0.5f, rect.y + usable * normalized, thumbWidth, thumbHeight);
 
             Event ev = Event.current;
-            if (ev != null)
+            if (!GUI.enabled && GUIUtility.hotControl == id)
+            { GUIUtility.hotControl = 0; activeControlId = 0; }
+            if (ev != null && GUI.enabled)
             {
                 switch (ev.GetTypeForControl(id))
                 {
@@ -113,7 +117,7 @@ namespace BigCityLegacy.UI
             if (Event.current == null || Event.current.type == EventType.Repaint)
             {
                 GUI.Box(track, GUIContent.none, LegacyUI.Styles.VerticalSlider);
-                GUI.Box(thumb, GUIContent.none, LegacyUI.Styles.VerticalSliderThumb);
+                LegacyUIAnimatedControls.Thumb(id, thumb, LegacyUI.Styles.VerticalSliderThumb, LegacyUI.Textures.SliderThumbHover);
             }
 
             return Mathf.Clamp(value, min, max);
@@ -135,7 +139,9 @@ namespace BigCityLegacy.UI
             Rect thumb = new Rect(rect.x + usable * normalized, rect.y, thumbWidth, rect.height);
 
             Event ev = Event.current;
-            if (ev != null)
+            if (!GUI.enabled && GUIUtility.hotControl == id)
+            { GUIUtility.hotControl = 0; activeControlId = 0; }
+            if (ev != null && GUI.enabled)
             {
                 switch (ev.GetTypeForControl(id))
                 {
@@ -170,7 +176,7 @@ namespace BigCityLegacy.UI
             if (Event.current == null || Event.current.type == EventType.Repaint)
             {
                 GUI.Box(rect, GUIContent.none, LegacyUI.Styles.HorizontalScrollbar);
-                GUI.Box(thumb, GUIContent.none, LegacyUI.Styles.HorizontalScrollbarThumb);
+                LegacyUIAnimatedControls.Thumb(id, thumb, LegacyUI.Styles.HorizontalScrollbarThumb, LegacyUI.Textures.SliderThumbHover);
                 LegacyUI.DrawBorder(rect);
             }
 
@@ -193,7 +199,9 @@ namespace BigCityLegacy.UI
             Rect thumb = new Rect(rect.x, rect.y + usable * normalized, rect.width, thumbHeight);
 
             Event ev = Event.current;
-            if (ev != null)
+            if (!GUI.enabled && GUIUtility.hotControl == id)
+            { GUIUtility.hotControl = 0; activeControlId = 0; }
+            if (ev != null && GUI.enabled)
             {
                 switch (ev.GetTypeForControl(id))
                 {
@@ -228,7 +236,7 @@ namespace BigCityLegacy.UI
             if (Event.current == null || Event.current.type == EventType.Repaint)
             {
                 GUI.Box(rect, GUIContent.none, LegacyUI.Styles.VerticalScrollbar);
-                GUI.Box(thumb, GUIContent.none, LegacyUI.Styles.VerticalScrollbarThumb);
+                LegacyUIAnimatedControls.Thumb(id, thumb, LegacyUI.Styles.VerticalScrollbarThumb, LegacyUI.Textures.SliderThumbHover);
                 LegacyUI.DrawBorder(rect);
             }
 

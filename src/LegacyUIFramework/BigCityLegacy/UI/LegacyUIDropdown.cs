@@ -20,6 +20,11 @@ namespace BigCityLegacy.UI
         private float anchorScale = 1f;
         private readonly int inputBlockId = LegacyUIInputBlocker.AllocateOwnerId();
         private int selectedIndex;
+        private readonly LegacyUIFade popupFade = new LegacyUIFade();
+        private LegacyUIAnimationSettings anchorAnimations;
+        private float anchorAlpha = 1f;
+        private bool anchorEnabled = true;
+        public LegacyUIAnimationSettings Animations { get; set; }
 
         public IList<string> Items { get; set; }
         public int SelectedIndex
@@ -38,6 +43,7 @@ namespace BigCityLegacy.UI
 
         public LegacyUIDropdown(IList<string> items, int selectedIndex = 0)
         {
+            popupFade.Reset(0f, Time.realtimeSinceStartup);
             Items = items ?? new string[0];
             this.selectedIndex = selectedIndex;
             PopupWidth = 0f;
@@ -57,6 +63,10 @@ namespace BigCityLegacy.UI
             anchorKnown = true;
             anchorMatrix = GUI.matrix;
             anchorScale = LegacyUI.ActiveScale;
+            anchorAnimations = LegacyUI.CurrentAnimations;
+            anchorAlpha = GUI.color.a;
+            anchorEnabled = GUI.enabled;
+            if (!anchorEnabled) IsOpen = false;
             using (LegacyUI.WithTheme(Theme))
             {
                 int count = Items == null ? 0 : Items.Count;
@@ -76,7 +86,7 @@ namespace BigCityLegacy.UI
         /// </summary>
         public void HandlePopupInput()
         {
-            if (!IsOpen || !anchorKnown || Items == null) return;
+            if (!IsOpen || !anchorEnabled || !anchorKnown || Items == null) return;
             Event e = Event.current;
             if (e == null) return;
             Matrix4x4 beforeMatrix = GUI.matrix;
@@ -147,17 +157,24 @@ namespace BigCityLegacy.UI
         /// <summary>Draw after other controls; do not call inside GUI.BeginScrollView.</summary>
         public void DrawPopup()
         {
-            if (!IsOpen || !anchorKnown || Items == null || Items.Count == 0)
+            LegacyUIAnimationSettings settings = Animations ?? anchorAnimations ?? LegacyUI.CurrentAnimations;
+            float alpha = popupFade.Sample(IsOpen ? 1f : 0f, settings.DropdownDuration, settings.Enabled, Time.realtimeSinceStartup);
+            if ((!IsOpen && alpha <= 0.001f) || !anchorKnown || Items == null || Items.Count == 0)
             {
                 LegacyUIInputBlocker.ClearWindow(inputBlockId);
                 return;
             }
+            Color beforeColor = GUI.color;
+            bool beforeEnabled = GUI.enabled;
             Matrix4x4 beforeMatrix = GUI.matrix;
             float beforeScale = LegacyUI.ActiveScale;
+            GUI.color = new Color(beforeColor.r, beforeColor.g, beforeColor.b, beforeColor.a * anchorAlpha * alpha);
+            GUI.enabled = beforeEnabled && anchorEnabled && IsOpen;
             GUI.matrix = anchorMatrix;
             LegacyUI.ActiveScale = anchorScale;
             try
             {
+            using (new LegacyUIAnimationScope(settings, inputBlockId))
             using (LegacyUI.WithTheme(Theme))
             {
                 Rect popup = GetPopupRect();
@@ -186,6 +203,8 @@ namespace BigCityLegacy.UI
             }
             finally
             {
+                GUI.color = beforeColor;
+                GUI.enabled = beforeEnabled;
                 GUI.matrix = beforeMatrix;
                 LegacyUI.ActiveScale = beforeScale;
             }

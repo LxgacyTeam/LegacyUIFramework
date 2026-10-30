@@ -201,7 +201,7 @@ public sealed class MyUiPlugin : BaseUnityPlugin
 
     private void OnGUI()
     {
-        if (window == null || !window.Visible) return;
+        if (window == null || !window.IsRendered) return;
 
         using (new LegacyUIGuiScope(-10000))
         {
@@ -249,7 +249,9 @@ new LegacyUIWindowOptions
 
 启用 `FadeWhileDragging` 后，拖动标题栏时，窗口及其所有子 IMGUI 元素都会以较低的不透明度绘制。
 
-`BackgroundAlpha` 只改变窗口背景的不透明度。如果为 `null`，则使用当前主题中的不透明度。
+`BackgroundAlpha` 设置窗口背景的基础不透明度。若为 `null`，在 `BackdropBlur = true` 时使用 `1f`，禁用模糊时使用当前主题的不透明度。显式设置的值（包括 `0f`）保持不变。`BlurTintAlpha` 默认为 `0.75f`，仅在成功绘制模糊图像时乘以背景不透明度；否则使用基础不透明度。默认值在绘制时计算，因此切换 `BackdropBlur` 不会覆盖 `BackgroundAlpha`。
+
+隐式的 `1f` 和 `BlurTintAlpha` 乘数仅作用于窗口自身的背景。窗口未显式设置 `BackgroundAlpha` 时，子面板（`LegacyUI.Panel` 和 `LegacyUIScrollView` 背景）使用各自当前主题的不透明度。窗口显式设置的 `BackgroundAlpha` 会被继承，但不包含模糊乘数；面板或 ScrollView 自己的 `BackgroundAlpha` 优先。继承范围仅限于 `window.Draw`：嵌套窗口使用自己的上下文，返回或异常时恢复之前的上下文。打开及拖动动画仍作用于窗口的全部内容。
 
 `Theme` 为可选项。设置后，只有该窗口及其内容使用指定主题绘制，不会改变框架的全局主题。
 
@@ -355,6 +357,8 @@ map.Draw(delegate(Rect content)
 ```
 
 调用 `UseAutoContentSize()` 可恢复动态大小计算；调用 `ResetScroll()` 可返回左上角。`ShowHorizontalScrollbar` 和 `ShowVerticalScrollbar` 控制在哪些轴上预留空间并绘制框架样式的滚动条。每个实例都可以单独调整 `ScrollbarSize`、`ScrollbarSpacing`、`DrawBackground`、`BackgroundAlpha`、`ScrollPosition` 和 `Theme`。
+
+`LegacyUIScrollView` 背景使用 `Mathf.Clamp01(alpha) * 0.75f`，即将基础不透明度降低 25%。优先使用 ScrollView 自己的 `BackgroundAlpha`，其次使用所在窗口显式设置的 `BackgroundAlpha`，否则使用 ScrollView 当前主题的 `WindowBackground.a`。例如，`0.8f` 得到 `0.6f`，主题值 `0.85f` 得到 `0.6375f`。该乘数仅影响 ScrollView 背景，不影响内容、边框或滚动条；设置和调色板保持不变。
 
 > [!WARNING]
 > **注意：ScrollView 附近 IMGUI 元素的调用顺序**
@@ -619,3 +623,128 @@ HintBox
 
 不要将大型可选 UI 辅助工具移回 BigCityLegacy 主插件。包含大量 UI 的新插件应引用 `LegacyUIFramework.dll`，并将自身的功能逻辑保留在独立程序集中。
 
+## 动画
+
+动画默认启用：窗口和下拉菜单淡入淡出，拖动时平滑过渡到 `DragAlpha`，Toggle 状态和控件悬停效果也平滑变化。持续时间使用真实秒数，因此 `Time.timeScale = 0` 不会暂停动画。持续时间为零会禁用对应过渡，`Enabled = false` 会禁用该设置对象的全部动画。
+
+```csharp
+private readonly LegacyUIAnimationSettings animations = new LegacyUIAnimationSettings
+{
+    Enabled = true,
+    WindowDuration = 0.18f,
+    DragDuration = 0.12f,
+    DropdownDuration = 0.14f,
+    ToggleDuration = 0.12f,
+    HoverDuration = 0.12f
+};
+
+// OnGUI: plugin defaults are scoped; other plugins keep their own settings.
+using (new LegacyUIGuiScope(-10000, scaleSettings, animations))
+{
+    window.Draw(DrawContent);
+}
+
+// Optional per-window override:
+window.Options.Animations = new LegacyUIAnimationSettings { WindowDuration = 0.3f };
+// Or change the shared defaults outside plugin-specific scopes:
+LegacyUI.AnimationSettings.Enabled = false;
+```
+
+`LegacyUI.WithAnimations(settings)` 为一组控件指定设置。`LegacyUIWindowOptions.Animations` 可覆盖插件设置；null 表示继承。`LegacyUIDropdown.Animations` 默认继承锚点的设置。离开作用域时会恢复 GUI 和动画设置，包括发生异常时。
+
+`Visible` 表示请求的逻辑可见状态。每次 OnGUI 都应调用 `window.Draw(...)`，或使用 `window.IsRendered` 判断，以便淡出完成。不要在 `Closed` 回调中立即禁用 MonoBehaviour，应等待 `IsRendered == false`。`Closed` 仍立即触发，保存的可见性也是逻辑状态。淡出期间继续绘制内容，但禁用交互。`Opacity` 返回当前窗口透明度。下拉菜单保存锚点的变换、主题和透明度；在窗口前调用 `HandlePopupInput()`，在滚动裁剪外最后调用 `DrawPopup()`。
+
+## 进度条
+
+`LegacyUI.ProgressBar(rect, value, min, max, label)` 显示测量值。持久化的 `LegacyUIProgressBar` 实例可通过 `ValueProvider`（`Func<double>`）绑定数值；未提供回调时使用 `Value`。`Min` 和 `Max` 可以逐帧更新。回调在 GUI 线程执行。数值限制在范围内，支持反向范围；边界相等或数值无效时显示空条。Double 支持较大的下载字节数。控件不接收输入，并参与 ScrollView 自动内容尺寸计算。
+
+```csharp
+LegacyUI.ProgressBar(new Rect(20, 90, 260, 22), health, 0d, 100d, "HP");
+
+// Keep this instance across GUI calls:
+var download = new LegacyUIProgressBar
+{
+    Min = 0d,
+    Max = totalBytes,
+    ValueProvider = () => downloadedBytes,
+    ShowPercentage = true
+};
+// OnGUI:
+download.Draw(new Rect(20, 120, 260, 22));
+
+var palette = new LegacyUIPalette { ProgressFill = Color.green, ProgressTrack = Color.black };
+var theme = new LegacyUITheme(palette);
+using (LegacyUI.WithTheme(theme)) LegacyUI.ProgressBar(rect, currentValue, minimum, maximum);
+```
+
+主题中的 `LegacyUIPalette.ProgressFill` 和 `ProgressTrack` 分别设置填充色和背景色，与按钮及滑块颜色独立。默认标签显示百分比，`ShowPercentage = false` 隐藏标签，`Label` 可指定文本。动画及进度条同时支持主版本和 net35 版本。
+
+## MadOut2 专用背景模糊模块
+
+`src/LegacyUIFramework.Blur/LegacyUIFramework.Blur.csproj` 生成可选的 **LegacyUIFramework.Blur.dll**，仅支持使用 Built-in Render Pipeline 的 **MadOut2 9.4**，没有 net35 版本。基础库只提供 `ILegacyUIBackdrop` 接口，无需该模块也能使用。BigCityLegacy 只在受支持的客户端创建此模块，专用或无图形服务器不会创建它。
+
+```csharp
+using BigCityLegacy.UI.Blur;
+
+// MadOut2 9.4 client only; host owns the provider's lifetime:
+LegacyBclBlur backdrop = LegacyBclBlur.Create(gameObject);
+using (new LegacyUIGuiScope(-10000, scaleSettings, animations, backdrop))
+    window.Draw(DrawContent);
+
+window.Options.BackdropBlur = false; // disable for one window
+window.Options.BlurTintAlpha = 0.75f;
+// Or set window.Options.Backdrop to a specific ILegacyUIBackdrop provider.
+```
+
+模块使用真实的 `Cam.me.unityCam`，并以 Camera.main 为备用。附加的 image effect 在 IMGUI 绘制前获取场景，同时原样传递相机输出。主场景相机输出到 `MainRenderTexture` 时也可用于捕获：GameUI 将该纹理铺满屏幕，因此窗口裁剪使用屏幕尺寸，不受场景渲染比例影响。其他离屏相机不参与选择。直接输出到屏幕时仍按相机 viewport 映射。它引用游戏原生 BlurBehind 着色器，在独立材质中使用 pass 0 与 `_Parameter`，不修改原生 Canvas BlurBehind 的启用状态、设置或全局着色器参数。恢复项目中的着色器源码是重建占位内容，不会替换游戏中的着色器。
+
+所有窗口共享一张低分辨率纹理，默认宽高各缩小四倍。可配置 `Downsample`（1–8）、`Iterations`（0–4）和 `Radius`（0–8）。窗口裁剪考虑屏幕坐标、UI 缩放、相机 viewport 和 Y 方向。更改分辨率或相机时重建资源，空闲、禁用或销毁时释放资源。没有适用相机/着色器或窗口位于 viewport 外时，使用普通主题背景。`BlurTintAlpha` 只在模糊图像可用时乘以窗口背景透明度，窗口内容保持清晰。
+
+### 拖动状态与相机输入
+
+`window.isDragging` 与 `window.IsDragging` 是同一个只读状态。左键捕获标题栏后为 true，松开左键、关闭窗口、收到 Ignore 事件、禁用 `Draggable` 或检测到鼠标在 GUI 外松开时恢复 false。松开其他鼠标键不会取消左键拖动。此状态与 DragAlpha 动画独立，透明度恢复期间不会保持 true。
+
+`window.IsDragHandleAtScreenPoint(point)` 使用最近绘制的标题栏区域进行命中检测，输入为实际屏幕像素坐标，原点与 Unity `Input.mousePosition` 一样位于左下角。它考虑 GUI/窗口缩放并排除关闭按钮。宿主可在 OnGUI 捕获拖动之前排除初始按下，再通过 `isDragging` 在整个拖动期间阻止相机旋转。查询不会创建窗口实例。
+
+### BCL 与示例插件
+
+BCL 的 About、Server Connection、玩家档案、更新器、VinylPort 及其确认窗口使用模糊背景和更透明的底色；性能叠加层也共享该背景。PointTool 明确禁用模糊。提供者不可用时保留普通背景。
+
+Example 插件对 BCL 使用软依赖。检测到 BCL 时，从其对象获取 `ILegacyUIBackdrop` 组件，共享同一个捕获纹理，无需在编译时直接引用 BCL 或 Blur DLL。没有 BCL 时仍可独立运行。net35 示例也保留此可选集成，但通常不存在兼容的提供者。
+
+### 模糊诊断
+
+BCL 默认启用模糊诊断。消息前缀为 `[BCL Blur]`，以 Info 级别写入 `BepInEx/LogOutput.log`。配置位于 `BepInEx/config/com.bigcitylegacy.baseplugin.cfg`：
+
+```ini
+[UI]
+BlurDiagnostics = true
+```
+
+启动记录包含实际加载的框架/模块 DLL 路径与版本、诊断修订号、游戏/Unity 版本及图形后端。后续记录显示窗口及 GUI 事件、提供者缺失、窗口禁用模糊、相机选择及渲染条件、着色器来源/支持状态/pass 数量、纹理尺寸、image effect 回调、viewport 越界和绘制成功状态。每五秒的摘要关联窗口 Repaint、背景请求、相机 pre-render、image 回调及完成的捕获数量。`repaint-consumed-before-backdrop` 专门表示 Repaint 在背景绘制前已被消费，而不是普通 Layout。
+
+相同状态不会逐帧重复，状态变更也按阶段限流。诊断不会读取 GPU 像素或保存截图。设置 `BlurDiagnostics = false` 可关闭这些记录。其他宿主可使用 `LegacyBclBlur.Create(host, logCallback, diagnosticsEnabled)`、`DiagnosticsEnabled` 和 `DiagnosticLog`。基础库仅向实现 `ILegacyUIBackdropDiagnostics` 的提供者发送可选的 `LegacyUIBackdropDiagnosticInfo`，无需依赖特定日志系统。
+
+收集报告时，保留从程序启动开始的日志，打开 About 或 VinylPort 并保持可见 10–15 秒后再复制日志。记录不会修改模糊设置或自动切换相机。
+
+### HintBoxAlt 视觉选项
+
+`LegacyUIHintBox` 提供持续保存的 Visible、IsRendered、Opacity、Rect、Options 状态。LegacyUIHintBoxOptions 包含 Theme、Animations（null 继承作用域/全局）、Backdrop、BackdropBlur、BlurTintAlpha、BackgroundAlpha、BackgroundColor、ScaleMultiplier、Padding、DrawBorder、InputBlockMode。默认颜色来自主题 HintBackgroundAlt；启用模糊时隐式 alpha 为 1，显式 BackgroundAlpha 或自定义 BackgroundColor 的 alpha 优先。BlurTintAlpha 仅在成功绘制模糊时作用于背景。内容保持清晰，fade 使用真实时间作用于整体，绘制后恢复 GUI 颜色、启用状态、主题与缩放。
+
+原有 `LegacyUI.HintBoxAlt(rect, text)` 支持 fade-in 与可用的模糊提供者；`LegacyUI.StyledHintBoxAlt(rect, text, options)` 可显式传入设置。需要 fade-out 时保留实例，在 Visible=false 后继续 Draw，直到 IsRendered=false；静态即时调用停止后无法继续绘制淡出。按 virtual screen 定位时须考虑 ScaleMultiplier。核心实现也支持 net35，模糊模块仍为可选。
+
+```csharp
+var hint = new LegacyUIHintBox(new Rect(20, 20, 400, 90), new LegacyUIHintBoxOptions
+{
+    BackdropBlur = true,
+    BlurTintAlpha = 0.75f,
+    BackgroundAlpha = 1f,
+    BackgroundColor = new Color(0.03f, 0.03f, 0.04f, 1f),
+    ScaleMultiplier = 1.5f,
+    Animations = new LegacyUIAnimationSettings { WindowDuration = 0.2f }
+});
+// In OnGUI, also after setting Visible = false:
+if (hint.IsRendered) hint.Draw("Text");
+// A callback allows custom content inside the padding:
+hint.Draw("", area => LegacyUI.Label(area, "Custom content"));
+```

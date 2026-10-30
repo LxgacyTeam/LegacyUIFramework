@@ -10,12 +10,38 @@ namespace BigCityLegacy.UI
     {
         private Rect rect;
         private Vector2 dragOffset;
-        private bool isDragging;
+        private bool dragging;
+        private int dragStartedFrame;
+        private Rect physicalDragHandle;
+        private bool dragHandleKnown;
         private bool prefsLoaded;
         private readonly int inputBlockOwnerId = LegacyUIInputBlocker.AllocateOwnerId();
 
         public string Title { get; set; }
-        public bool Visible { get; set; }
+        private bool visible = true;
+        private float opacity;
+        private readonly LegacyUIFade visibilityFade = new LegacyUIFade();
+        private readonly LegacyUIFade dragFade = new LegacyUIFade();
+        private LegacyUIAnimationSettings lastAnimations;
+        public bool Visible
+        {
+            get { return visible; }
+            set
+            {
+                if (visible == value) return;
+                visible = value;
+                if (!value) { dragging = false; LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId); }
+                UpdateOpacity();
+            }
+        }
+        /// <summary>Keep calling Draw while this is true, including after Visible becomes false.</summary>
+        public bool IsRendered { get { UpdateOpacity(); return visible || opacity > 0.001f; } }
+        public float Opacity { get { UpdateOpacity(); return opacity; } }
+        private void UpdateOpacity()
+        {
+            LegacyUIAnimationSettings settings = (Options != null ? Options.Animations : null) ?? lastAnimations ?? LegacyUI.CurrentAnimations;
+            opacity = visibilityFade.Sample(visible ? 1f : 0f, settings.WindowDuration, settings.Enabled, Time.realtimeSinceStartup);
+        }
         public LegacyUIWindowOptions Options { get; private set; }
         public Rect Rect
         {
@@ -25,7 +51,37 @@ namespace BigCityLegacy.UI
 
         public bool IsDragging
         {
-            get { return isDragging; }
+            get { RefreshDragState(); return dragging; }
+        }
+
+        /// <summary>Read-only alias: true only while a header drag gesture is captured.</summary>
+        public bool isDragging { get { return IsDragging; } }
+
+        /// <summary>Input.mousePosition-style physical screen coordinates (origin at bottom left).
+        /// Uses the last drawn header transform, including plugin/window scaling; excludes close.</summary>
+        public bool IsDragHandleAtScreenPoint(Vector2 point)
+        {
+            return Visible && Options.Draggable && dragHandleKnown &&
+                physicalDragHandle.Contains(new Vector2(point.x, Screen.height - point.y));
+        }
+
+        private void RefreshDragState()
+        {
+            if (!dragging) return;
+            if (!Visible || !Options.Draggable) { dragging = false; return; }
+            // MouseUp can be lost when the pointer is released outside the game.
+            // Do not poll on the capture frame: native input may precede IMGUI.
+            if (Time.frameCount != dragStartedFrame && LegacyInput.Init() && !LegacyInput.GetMouseButton(0))
+            {
+                dragging = false;
+                SavePrefs();
+            }
+        }
+
+        private Rect GetDragHandleRect()
+        {
+            return new Rect(rect.x, rect.y, Mathf.Max(0f, rect.width - (Options.ShowCloseButton ? 34f : 0f)),
+                Mathf.Max(0f, Options.HeaderHeight));
         }
 
         public event Action Closed;
@@ -39,71 +95,77 @@ namespace BigCityLegacy.UI
         {
             Title = title ?? string.Empty;
             rect = startRect;
-            Visible = true;
             Options = options ?? new LegacyUIWindowOptions();
+            visibilityFade.Reset(0f, Time.realtimeSinceStartup);
+            dragFade.Reset(1f, Time.realtimeSinceStartup);
         }
 
         public void Draw(Action<Rect> drawContent)
         {
-            using (LegacyUI.WithTheme(Options != null ? Options.Theme : null))
-            using (LegacyUI.WithScale(Options != null ? Options.ScaleMultiplier : 1f))
+            float? previousPanelAlpha = LegacyUI.ActivePanelBackgroundAlpha;
+            LegacyUI.ActivePanelBackgroundAlpha = Options.BackgroundAlpha;
+            try
             {
-                DrawInternal(drawContent);
+                using (new LegacyUIAnimationScope(Options.Animations, inputBlockOwnerId))
+                using (LegacyUI.WithTheme(Options != null ? Options.Theme : null))
+                using (LegacyUI.WithScale(Options != null ? Options.ScaleMultiplier : 1f))
+                {
+                    DrawInternal(drawContent);
+                }
             }
+            finally { LegacyUI.ActivePanelBackgroundAlpha = previousPanelAlpha; }
         }
 
         private void DrawInternal(Action<Rect> drawContent)
         {
+            Event entry = Event.current;
+            EventType entryEvent = entry != null ? entry.type : EventType.Ignore;
+            EventType rawEvent = entry != null ? entry.rawType : EventType.Ignore;
             LegacyUI.EnsureInitialized();
-            if (!Visible)
-            {
-                LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId);
-                return;
-            }
-
+            lastAnimations = LegacyUI.CurrentAnimations;
             LoadPrefsOnce();
-            if (!Visible)
-            {
-                LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId);
-                return;
-            }
+            UpdateOpacity();
+            if (!IsRendered)
+            { dragHandleKnown = false; LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId); return; }
             FixRect();
-            HandleDragAndClose();
-            if (!Visible)
-            {
-                LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId);
-                return;
-            }
-
+            if (Visible) HandleDragAndClose();
             FixRect();
+            dragHandleKnown = Visible && Options.Draggable && GUI.enabled;
+            if (dragHandleKnown) physicalDragHandle = LegacyUI.ToPhysicalRect(GetDragHandleRect());
             LegacyUIInputBlocker.ReportWindow(inputBlockOwnerId, LegacyUI.ToPhysicalRect(rect), Options.InputBlockMode);
 
             Color oldColor = GUI.color;
-            if (isDragging && Options.FadeWhileDragging)
+            bool oldEnabled = GUI.enabled;
+            try
             {
-                Color c = GUI.color;
-                c.a *= Mathf.Clamp01(Options.DragAlpha);
-                GUI.color = c;
+                LegacyUIAnimationSettings settings = LegacyUI.CurrentAnimations;
+                float drag = dragFade.Sample(dragging && Options.FadeWhileDragging ? Mathf.Clamp01(Options.DragAlpha) : 1f,
+                    settings.DragDuration, settings.Enabled, Time.realtimeSinceStartup);
+                GUI.color = new Color(oldColor.r, oldColor.g, oldColor.b, oldColor.a * opacity * drag);
+                GUI.enabled = oldEnabled && Visible;
+                ILegacyUIBackdrop backdrop = Options.Backdrop ?? LegacyUI.ActiveBackdrop;
+                EventType backdropEvent = Event.current != null ? Event.current.type : EventType.Ignore;
+                bool blurred = Event.current != null && Event.current.type == EventType.Repaint &&
+                    Options.BackdropBlur && backdrop != null && backdrop.Draw(rect);
+                float? alpha = Options.BackgroundAlpha;
+                if (!alpha.HasValue && Options.BackdropBlur) alpha = 1f;
+                if (blurred) alpha = (alpha ?? LegacyUI.Palette.WindowBackground.a) * Mathf.Clamp01(Options.BlurTintAlpha);
+                ILegacyUIBackdropDiagnostics diagnostic = backdrop as ILegacyUIBackdropDiagnostics;
+                if (diagnostic != null)
+                    diagnostic.ReportWindow(new LegacyUIBackdropDiagnosticInfo
+                    {
+                        Title = Title, Rect = rect, EntryEvent = entryEvent, CurrentEvent = backdropEvent,
+                        RawEvent = rawEvent, Requested = Options.BackdropBlur, Drawn = blurred,
+                        BackgroundAlpha = alpha ?? LegacyUI.Palette.WindowBackground.a,
+                        TintMultiplier = Options.BlurTintAlpha, Opacity = GUI.color.a
+                    });
+                LegacyUI.Panel(rect, alpha);
+                if (DrawHeader()) GUI.enabled = false;
+                Rect content = new Rect(rect.x + 15f, rect.y + Options.HeaderHeight + 12f,
+                    rect.width - 30f, Mathf.Max(0f, rect.height - Options.HeaderHeight - 24f));
+                if (drawContent != null) drawContent(content);
             }
-
-            LegacyUI.Panel(rect, Options.BackgroundAlpha);
-            if (DrawHeader())
-            {
-                GUI.color = oldColor;
-                LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId);
-                return;
-            }
-
-            Rect content = new Rect(
-                rect.x + 15f,
-                rect.y + Options.HeaderHeight + 12f,
-                rect.width - 30f,
-                Mathf.Max(0f, rect.height - Options.HeaderHeight - 24f));
-
-            if (drawContent != null)
-                drawContent(content);
-
-            GUI.color = oldColor;
+            finally { GUI.color = oldColor; GUI.enabled = oldEnabled; }
             BlockBackgroundInputIfNeeded();
         }
 
@@ -180,7 +242,7 @@ namespace BigCityLegacy.UI
             else if (!string.IsNullOrEmpty(Options.RightHint) && Options.ShowCloseButton)
                 LegacyUI.MiniHint(new Rect(rect.x + rect.width - 138f, rect.y + 12f, 100f, 18f), Options.RightHint);
 
-            if (Options.ShowCloseButton && GUI.Button(GetCloseButtonRect(), "×", LegacyUI.Styles.CloseButton))
+            if (Options.ShowCloseButton && LegacyUI.StyledButton(GetCloseButtonRect(), "×", LegacyUI.Styles.CloseButton))
             {
                 Close();
                 return true;
@@ -192,30 +254,29 @@ namespace BigCityLegacy.UI
 
         private void HandleDragAndClose()
         {
+            RefreshDragState();
             Event cur = Event.current;
             if (cur == null) return;
-
-            if (!Options.Draggable) return;
-
-            Rect titleArea = new Rect(rect.x, rect.y, rect.width, Options.HeaderHeight);
-            if (Options.ShowCloseButton)
-                titleArea.width -= 34f;
+            if (!Options.Draggable || !GUI.enabled || cur.type == EventType.Ignore)
+            { dragging = false; return; }
+            Rect titleArea = GetDragHandleRect();
 
             if (cur.type == EventType.MouseDown && cur.button == 0 && titleArea.Contains(LegacyUI.MousePosition))
             {
-                isDragging = true;
+                dragging = true;
+                dragStartedFrame = Time.frameCount;
                 dragOffset = LegacyUI.MousePosition - rect.position;
                 cur.Use();
             }
-            else if (cur.type == EventType.MouseDrag && isDragging)
+            else if (cur.type == EventType.MouseDrag && dragging)
             {
                 rect.position = LegacyUI.MousePosition - dragOffset;
                 FixRect();
                 cur.Use();
             }
-            else if (cur.type == EventType.MouseUp && isDragging)
+            else if (cur.type == EventType.MouseUp && cur.button == 0 && dragging)
             {
-                isDragging = false;
+                dragging = false;
                 SavePrefs();
                 cur.Use();
             }

@@ -4,6 +4,7 @@ namespace BigCityLegacy.UI
 {
     public sealed class LegacyUIStyles
     {
+        public GUIStyle ProgressLabel { get; private set; }
         public GUIStyle Window { get; private set; }
         public GUIStyle Label { get; private set; }
         public GUIStyle Title { get; private set; }
@@ -37,6 +38,10 @@ namespace BigCityLegacy.UI
             Label.normal.textColor = palette.Text;
             Label.fontSize = 12;
             Label.alignment = TextAnchor.MiddleLeft;
+
+            ProgressLabel = new GUIStyle(Label);
+            ProgressLabel.alignment = TextAnchor.MiddleCenter;
+            ProgressLabel.normal.textColor = palette.TextBright;
 
             Title = new GUIStyle(Label);
             Title.fontSize = 13;

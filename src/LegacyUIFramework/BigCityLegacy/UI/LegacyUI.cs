@@ -13,6 +13,18 @@ namespace BigCityLegacy.UI
         private static LegacyUITheme theme;
         private static readonly LegacyUIScaleSettings globalScaleSettings = new LegacyUIScaleSettings();
         internal static float ActiveScale = 1f;
+        private static readonly LegacyUIAnimationSettings animationSettings = new LegacyUIAnimationSettings();
+        internal static LegacyUIAnimationSettings ActiveAnimations;
+        internal static int AnimationOwner;
+        internal static ILegacyUIBackdrop ActiveBackdrop;
+        // Only an explicitly configured window alpha is inherited by child panels.
+        // The blur-specific default and tint are local to the window background.
+        internal static float? ActivePanelBackgroundAlpha;
+        public static LegacyUIAnimationSettings AnimationSettings { get { return animationSettings; } }
+        internal static LegacyUIAnimationSettings CurrentAnimations { get { return ActiveAnimations ?? animationSettings; } }
+        public static LegacyUIAnimationScope WithAnimations(LegacyUIAnimationSettings settings)
+        { return new LegacyUIAnimationScope(settings, null); }
+
 
         /// <summary>Defaults used by LegacyUIGuiScope unless that plugin provides its own settings.</summary>
         public static LegacyUIScaleSettings ScaleSettings { get { return globalScaleSettings; } }
@@ -50,7 +62,7 @@ namespace BigCityLegacy.UI
         }
 
         /// <summary>Screen-space (physical GUI pixel) rect for the game input blocker.</summary>
-        internal static Rect ToPhysicalRect(Rect virtualRect)
+        public static Rect ToPhysicalRect(Rect virtualRect)
         {
             Matrix4x4 matrix = GUI.matrix;
             Vector3 a = matrix.MultiplyPoint3x4(new Vector3(virtualRect.xMin, virtualRect.yMin, 0f));
@@ -367,11 +379,11 @@ namespace BigCityLegacy.UI
 
         public static void HintBoxAlt(Rect rect, string text)
         {
-            RegisterElementRect(rect);
-            GUI.Box(rect, string.Empty, Styles.HintAlt);
-            GUI.Label(rect, text ?? string.Empty, Styles.HintAlt);
-            DrawBorder(rect);
+            LegacyUIHintBox.DrawImmediate(rect, text, null);
         }
+
+        public static void StyledHintBoxAlt(Rect rect, string text, LegacyUIHintBoxOptions options)
+        { LegacyUIHintBox.DrawImmediate(rect, text, options); }
 
         public static void HintBoxAlt(Rect rect, string text, LegacyUITheme scopedTheme)
         {
@@ -400,7 +412,9 @@ namespace BigCityLegacy.UI
             RegisterElementRect(rect);
             using (new LegacyUITextInputSkinScope(Palette))
             {
-                return GUI.TextField(rect, value ?? string.Empty, Styles.TextField);
+                string result = GUI.TextField(rect, value ?? string.Empty, Styles.TextField);
+                LegacyUIAnimatedControls.FieldHover(rect);
+                return result;
             }
         }
 
@@ -417,7 +431,9 @@ namespace BigCityLegacy.UI
             RegisterElementRect(rect);
             using (new LegacyUITextInputSkinScope(Palette))
             {
-                return GUI.TextArea(rect, value ?? string.Empty, Styles.TextArea);
+                string result = GUI.TextArea(rect, value ?? string.Empty, Styles.TextArea);
+                LegacyUIAnimatedControls.FieldHover(rect);
+                return result;
             }
         }
 
@@ -432,7 +448,13 @@ namespace BigCityLegacy.UI
         public static bool Button(Rect rect, string text)
         {
             RegisterElementRect(rect);
-            return GUI.Button(rect, text ?? string.Empty, Styles.Button);
+            return LegacyUIAnimatedControls.Button(rect, text, Styles.Button);
+        }
+
+        public static bool StyledButton(Rect rect, string text, GUIStyle style)
+        {
+            RegisterElementRect(rect);
+            return LegacyUIAnimatedControls.Button(rect, text, style ?? Styles.Button);
         }
 
         public static bool Button(Rect rect, string text, LegacyUITheme scopedTheme)
@@ -446,7 +468,7 @@ namespace BigCityLegacy.UI
         public static bool GreenButton(Rect rect, string text)
         {
             RegisterElementRect(rect);
-            return GUI.Button(rect, text ?? string.Empty, Styles.GreenButton);
+            return LegacyUIAnimatedControls.Button(rect, text, Styles.GreenButton);
         }
 
         public static bool GreenButton(Rect rect, string text, LegacyUITheme scopedTheme)
@@ -460,7 +482,7 @@ namespace BigCityLegacy.UI
         public static bool DangerButton(Rect rect, string text)
         {
             RegisterElementRect(rect);
-            return GUI.Button(rect, text ?? string.Empty, Styles.DangerButton);
+            return LegacyUIAnimatedControls.Button(rect, text, Styles.DangerButton);
         }
 
         public static bool DangerButton(Rect rect, string text, LegacyUITheme scopedTheme)
@@ -474,14 +496,7 @@ namespace BigCityLegacy.UI
         public static bool TabButton(Rect rect, string text, bool selected)
         {
             RegisterElementRect(rect);
-            GUIStyle style = new GUIStyle(Styles.Tab);
-            if (selected)
-            {
-                style.normal.background = Textures.Active;
-                style.hover.background = Textures.Active;
-                style.active.background = Textures.Active;
-            }
-            return GUI.Button(rect, text ?? string.Empty, style);
+            return LegacyUIAnimatedControls.Button(rect, text, Styles.Tab, selected);
         }
 
         public static bool TabButton(Rect rect, string text, bool selected, LegacyUITheme scopedTheme)
@@ -495,16 +510,7 @@ namespace BigCityLegacy.UI
         public static bool Toggle(Rect rect, bool value, string label)
         {
             RegisterElementRect(rect);
-            bool clicked = GUI.Button(rect, string.Empty, GUIStyle.none);
-
-            Rect checkRect = new Rect(rect.x, rect.y + Mathf.Max(0f, (rect.height - 14f) * 0.5f), 14f, 14f);
-            GUI.Box(checkRect, string.Empty, new GUIStyle { normal = { background = value ? Textures.Active : Textures.CheckEmpty } });
-            DrawBorder(checkRect);
-
-            Rect labelRect = new Rect(rect.x + 20f, rect.y, rect.width - 20f, rect.height);
-            GUI.Label(labelRect, label ?? string.Empty, Styles.CheckboxLabel);
-
-            return clicked ? !value : value;
+            return LegacyUIAnimatedControls.Toggle(rect, value, label);
         }
 
         public static bool Toggle(Rect rect, bool value, string label, LegacyUITheme scopedTheme)
@@ -587,6 +593,20 @@ namespace BigCityLegacy.UI
                 value = (int)Math.Min(maxValue, (long)value + Math.Max(1, step));
             RegisterElementRect(rect);
             return value;
+        }
+
+        public static void ProgressBar(Rect rect, double value, double min = 0d, double max = 1d, string label = null)
+        {
+            RegisterElementRect(rect);
+            if (rect.width <= 0f || rect.height <= 0f) return;
+            GUI.DrawTexture(rect, Textures.ProgressTrack);
+            float width = Mathf.Max(0f, rect.width - 2f);
+            float height = Mathf.Max(0f, rect.height - 2f);
+            float fill = (float)LegacyUIProgressBar.Normalize(value, min, max);
+            if (fill > 0f && width > 0f && height > 0f)
+                GUI.DrawTexture(new Rect(rect.x + 1f, rect.y + 1f, width * fill, height), Textures.ProgressFill);
+            if (label != null) GUI.Label(rect, label, Styles.ProgressLabel);
+            DrawBorder(rect);
         }
 
         internal static Rect ClampRectToScreen(Rect rect, float padding)

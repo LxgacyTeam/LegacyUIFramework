@@ -1,15 +1,21 @@
 using System;
 using System.IO;
 using BepInEx;
+using BepInEx.Bootstrap;
 using BigCityLegacy.UI;
 using UnityEngine;
 
 namespace BigCityLegacy.UI.Example
 {
+    [BepInDependency("com.bigcitylegacy.baseplugin", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInPlugin("bigcitylegacy.legacyuiframework.example", "BigCityLegacy LegacyUIFramework Example", "1.1.0")]
     public sealed class LegacyUIFrameworkExamplePlugin : BaseUnityPlugin
     {
         private LegacyUIWindow window;
+        private ILegacyUIBackdrop bclBackdrop;
+        private readonly LegacyUIAnimationSettings animations = new LegacyUIAnimationSettings();
+        private readonly LegacyUIProgressBar measuredProgress = new LegacyUIProgressBar { Min = 0d, Max = 100d };
+
         private int tab;
         private bool toggleValue = true;
         private string textValue = "127.0.0.1";
@@ -34,6 +40,8 @@ namespace BigCityLegacy.UI.Example
 
         private void Awake()
         {
+            FindBclBackdrop();
+            measuredProgress.ValueProvider = () => (Math.Sin(Time.realtimeSinceStartup) + 1d) * 50d;
             greenTheme = CreateGreenTheme();
             whiteTheme = CreateWhiteTheme();
             amberTheme = CreateAmberTheme();
@@ -54,6 +62,8 @@ namespace BigCityLegacy.UI.Example
                 new Rect(120f, 90f, 455f, 565f),
                 new LegacyUIWindowOptions
                 {
+                    BackdropBlur = true,
+                    BlurTintAlpha = 0.5f,
                     ShowCloseButton = true,
                     RightHint = "[F9]",
                     PlayerPrefsKey = "LegacyUIFramework.Example.Window",
@@ -71,6 +81,21 @@ namespace BigCityLegacy.UI.Example
 
             RefreshDataPathFiles();
             nextFileListRefresh = Time.unscaledTime + 1f;
+        }
+
+        private void FindBclBackdrop()
+        {
+            PluginInfo plugin;
+            if (!Chainloader.PluginInfos.TryGetValue("com.bigcitylegacy.baseplugin", out plugin) || !plugin.Instance) return;
+            // Share BCL's capture provider without a compile-time dependency on
+            // BigCityLegacy or the game-specific Blur DLL. Standalone stays usable.
+            foreach (MonoBehaviour component in plugin.Instance.GetComponents<MonoBehaviour>())
+            {
+                // Several plugins can share BepInEx's manager GameObject.
+                if (!component || component.GetType().FullName != "BigCityLegacy.UI.Blur.LegacyBclBlur") continue;
+                ILegacyUIBackdrop candidate = component as ILegacyUIBackdrop;
+                if (candidate != null && component.isActiveAndEnabled) { bclBackdrop = candidate; break; }
+            }
         }
 
         private void Update()
@@ -99,9 +124,10 @@ namespace BigCityLegacy.UI.Example
 
         private void OnGUI()
         {
-            if (window == null || !window.Visible) return;
+            if (window == null || !window.IsRendered) return;
 
-            using (new LegacyUIGuiScope(-10000, scaleSettings))
+            if (bclBackdrop != null && !(bclBackdrop as UnityEngine.Object)) bclBackdrop = null;
+            using (new LegacyUIGuiScope(-10000, scaleSettings, animations, bclBackdrop))
             {
                 if (tab == 5) dropdown.HandlePopupInput();
                 window.Draw(DrawWindowContent);
@@ -159,7 +185,8 @@ namespace BigCityLegacy.UI.Example
             LegacyUI.HintBox(ui.Row(34f), "LegacyUIFramework version: " + LegacyUI.Version);
             ui.Space(4f);
             LegacyUI.Label(ui.Row(20f), "Drag the title bar: the whole window fades while dragging.");
-            LegacyUI.Label(ui.Row(20f), "Close button is enabled in the window options.");
+            animations.Enabled = LegacyUI.Toggle(ui.Row(20f), animations.Enabled, "Enable animations");
+            measuredProgress.Draw(ui.Row(22f));
             LegacyUI.Label(ui.Row(20f), "Input block mode: " + window.Options.InputBlockMode);
 
             Rect blockButtons = ui.Row(25f);

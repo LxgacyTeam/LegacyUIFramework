@@ -15,6 +15,8 @@ A small standalone IMGUI library for Unity Mono/BepInEx plugins. It makes it eas
 ---
 
 ## Features:
+* Configurable fade/hover animations and range-bound progress bars with independent theme colors
+* Optional `LegacyUIFramework.Blur` module for MadOut2 9.4; the core framework remains standalone
 * All UI elements are implemented as reusable helpers on top of standard Unity IMGUI
 * Quickly create draggable windows with flexible configuration for size, behavior, opacity, and more
 * Create styled UI elements such as buttons, checkboxes, sliders, input fields, and more

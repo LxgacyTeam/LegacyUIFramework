@@ -4,6 +4,8 @@ namespace BigCityLegacy.UI
 {
     public sealed class LegacyUITextures
     {
+        public Texture2D ProgressFill { get; private set; }
+        public Texture2D ProgressTrack { get; private set; }
         public Texture2D WindowBackground { get; private set; }
         public Texture2D Border { get; private set; }
         public Texture2D Field { get; private set; }
@@ -25,6 +27,8 @@ namespace BigCityLegacy.UI
 
         internal LegacyUITextures(LegacyUIPalette palette)
         {
+            ProgressFill = CreateSolidTexture(palette.ProgressFill, "LegacyUI_ProgressFill");
+            ProgressTrack = CreateSolidTexture(palette.ProgressTrack, "LegacyUI_ProgressTrack");
             WindowBackground = CreateSolidTexture(palette.WindowBackground, "BCL_UI_WindowBackground");
             Border = CreateSolidTexture(palette.Border, "BCL_UI_Border");
             Field = CreateSolidTexture(palette.Field, "BCL_UI_Field");

@@ -47,6 +47,7 @@ namespace BigCityLegacy.UI
         public float ScrollbarSize { get; set; }
         public float ScrollbarSpacing { get; set; }
         public bool DrawBackground { get; set; }
+        /// <summary>Base opacity; the scroll background is drawn at 75% of this value.</summary>
         public float? BackgroundAlpha { get; set; }
         public LegacyUITheme Theme { get; set; }
 
@@ -111,7 +112,10 @@ namespace BigCityLegacy.UI
             LegacyUI.RegisterElementRect(ViewRect);
 
             if (DrawBackground)
-                LegacyUI.Panel(ViewRect, BackgroundAlpha);
+            {
+                float alpha = BackgroundAlpha ?? LegacyUI.ActivePanelBackgroundAlpha ?? LegacyUI.Palette.WindowBackground.a;
+                LegacyUI.Panel(ViewRect, Mathf.Clamp01(alpha) * 0.7f);
+            }
 
             Rect clientRect = GetClientRect();
             if (clientRect.width <= 0f || clientRect.height <= 0f)

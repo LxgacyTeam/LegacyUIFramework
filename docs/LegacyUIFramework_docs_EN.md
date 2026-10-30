@@ -204,7 +204,7 @@ public sealed class MyUiPlugin : BaseUnityPlugin
 
     private void OnGUI()
     {
-        if (window == null || !window.Visible) return;
+        if (window == null || !window.IsRendered) return;
 
         using (new LegacyUIGuiScope(-10000))
         {
@@ -252,7 +252,9 @@ new LegacyUIWindowOptions
 
 When `FadeWhileDragging` is enabled, the window and all child IMGUI elements are drawn with reduced alpha while the title bar is being dragged.
 
-`BackgroundAlpha` changes only the window background opacity. If it is `null`, the opacity from the current theme is used.
+`BackgroundAlpha` sets the base window background opacity. If it is `null`, `BackdropBlur = true` uses `1f`; with blur disabled, the current theme's opacity is used. Explicit values, including `0f`, are preserved. `BlurTintAlpha` defaults to `0.75f` and multiplies the background opacity only when the blurred image is successfully drawn; otherwise the base opacity is used. The default is resolved at draw time, so toggling `BackdropBlur` does not overwrite `BackgroundAlpha`.
+
+The implicit `1f` value and `BlurTintAlpha` multiplier apply only to the window background. When the window has no explicit `BackgroundAlpha`, child panels (`LegacyUI.Panel` and `LegacyUIScrollView` backgrounds) use the opacity from their current theme. An explicit window `BackgroundAlpha` is inherited without the blur multiplier; a panel or ScrollView can override it with its own `BackgroundAlpha`. Inheritance is scoped to `window.Draw`: nested windows establish their own context, and the previous context is restored on return or exception. Opening and dragging animations still affect the entire window content.
 
 `Theme` is optional. If it is set, only this window and its content are drawn with that theme. The global framework theme is not changed.
 
@@ -358,6 +360,8 @@ map.Draw(delegate(Rect content)
 ```
 
 Call `UseAutoContentSize()` to return to dynamic sizing and `ResetScroll()` to jump back to the top-left corner. `ShowHorizontalScrollbar` and `ShowVerticalScrollbar` control which axes reserve and draw framework-styled scrollbars. `ScrollbarSize`, `ScrollbarSpacing`, `DrawBackground`, `BackgroundAlpha`, `ScrollPosition`, and `Theme` can be adjusted per instance.
+
+The `LegacyUIScrollView` background uses `Mathf.Clamp01(alpha) * 0.75f`, reducing the base opacity by 25%. It resolves its own `BackgroundAlpha` first, then the containing window's explicitly configured `BackgroundAlpha`, otherwise `WindowBackground.a` from the ScrollView's current theme. For example, `0.8f` produces `0.6f`, and a theme value of `0.85f` produces `0.6375f`. This multiplier affects only the ScrollView background, not its content, border or scrollbars; settings and palette remain unchanged.
 
 > [!WARNING]
 > **Warning — declaration order of IMGUI elements near a ScrollView**
@@ -624,3 +628,128 @@ This plugin is only a usage sample. It is not required by the framework.
 
 Do not move large optional UI helpers back into the main BigCityLegacy plugin. New UI-heavy plugins should reference `LegacyUIFramework.dll` and keep their own feature logic in separate assemblies.
 
+## Animations
+
+Animations are enabled by default: windows and dropdown popups fade in/out, dragging transitions smoothly to/from `DragAlpha`, toggles fade between states, and buttons, tabs, fields and slider/scrollbar thumbs animate hover. Durations use real seconds and continue while `Time.timeScale` is zero. Zero duration disables one transition; `Enabled = false` disables all transitions in that settings object.
+
+```csharp
+private readonly LegacyUIAnimationSettings animations = new LegacyUIAnimationSettings
+{
+    Enabled = true,
+    WindowDuration = 0.18f,
+    DragDuration = 0.12f,
+    DropdownDuration = 0.14f,
+    ToggleDuration = 0.12f,
+    HoverDuration = 0.12f
+};
+
+// OnGUI: plugin defaults are scoped; other plugins keep their own settings.
+using (new LegacyUIGuiScope(-10000, scaleSettings, animations))
+{
+    window.Draw(DrawContent);
+}
+
+// Optional per-window override:
+window.Options.Animations = new LegacyUIAnimationSettings { WindowDuration = 0.3f };
+// Or change the shared defaults outside plugin-specific scopes:
+LegacyUI.AnimationSettings.Enabled = false;
+```
+
+`LegacyUI.WithAnimations(settings)` scopes settings for a group. `LegacyUIWindowOptions.Animations` overrides plugin defaults; null inherits them. `LegacyUIDropdown.Animations` can override its anchor's settings. Settings and GUI state are restored when scopes end, including exceptions.
+
+`Visible` is the requested logical visibility. Keep calling `window.Draw(...)` every OnGUI pass, or guard with `window.IsRendered`, so closing can finish fading. Do not disable the hosting MonoBehaviour from `Closed`; disable it once `IsRendered` is false. `Closed` still fires immediately and preferences store logical visibility. Content continues drawing during fade-out with input disabled. `Opacity` exposes the current window fade. Popups retain the anchor's transform, theme and opacity; keep calling `DrawPopup()` last outside scroll clips, and `HandlePopupInput()` before the window.
+
+## Progress bars
+
+`LegacyUI.ProgressBar(rect, value, min, max, label)` is a read-only measured-value control. `LegacyUIProgressBar` binds a persistent instance to a `Func<double>` value provider, or its `Value` field. `Min` and `Max` can change between frames. Providers run on the GUI thread. Values are clamped to the range; descending ranges work, equal endpoints and invalid numbers produce an empty bar. Double precision accommodates large byte counts. No input is consumed; the control participates in automatic ScrollView sizing.
+
+```csharp
+LegacyUI.ProgressBar(new Rect(20, 90, 260, 22), health, 0d, 100d, "HP");
+
+// Keep this instance across GUI calls:
+var download = new LegacyUIProgressBar
+{
+    Min = 0d,
+    Max = totalBytes,
+    ValueProvider = () => downloadedBytes,
+    ShowPercentage = true
+};
+// OnGUI:
+download.Draw(new Rect(20, 120, 260, 22));
+
+var palette = new LegacyUIPalette { ProgressFill = Color.green, ProgressTrack = Color.black };
+var theme = new LegacyUITheme(palette);
+using (LegacyUI.WithTheme(theme)) LegacyUI.ProgressBar(rect, currentValue, minimum, maximum);
+```
+
+Progress colors are independent from buttons/sliders: `LegacyUIPalette.ProgressFill` and `ProgressTrack`. The default label is a percentage; set `ShowPercentage = false` or supply `Label` to replace it. Both normal and net35 framework builds include these controls and animations.
+
+## Optional MadOut2 backdrop blur
+
+`src/LegacyUIFramework.Blur/LegacyUIFramework.Blur.csproj` produces **LegacyUIFramework.Blur.dll**, an optional module for **MadOut2 9.4 only**, on its built-in render pipeline. It is not a universal Unity adapter and has no net35 build. The base library has only the `ILegacyUIBackdrop` interface and works without the module. BigCityLegacy references and initializes the module on supported clients; dedicated/headless servers do not create it.
+
+```csharp
+using BigCityLegacy.UI.Blur;
+
+// MadOut2 9.4 client only; host owns the provider's lifetime:
+LegacyBclBlur backdrop = LegacyBclBlur.Create(gameObject);
+using (new LegacyUIGuiScope(-10000, scaleSettings, animations, backdrop))
+    window.Draw(DrawContent);
+
+window.Options.BackdropBlur = false; // disable for one window
+window.Options.BlurTintAlpha = 0.75f;
+// Or set window.Options.Backdrop to a specific ILegacyUIBackdrop provider.
+```
+
+The module follows the actual `Cam.me.unityCam` (with a main-camera fallback), captures before IMGUI via an appended image effect, and forwards the original scene unchanged. The scene camera also qualifies when GameUI renders it into `MainRenderTexture`: GameUI displays this target across the screen, so window crops use screen dimensions independently of the scene render scale. Other offscreen cameras are excluded. Direct-to-screen rendering retains the camera viewport mapping. It borrows the native BlurBehind shader reference, uses its pass 0 and `_Parameter` convention in a private material, and does not enable/disable native BlurBehind, change its settings or touch the Canvas blur globals. The recovered project's shader source is a reconstruction stub and is not bundled or used in place of the game's shader.
+
+One quarter-resolution texture is reused by all requesting windows. `Downsample` (1–8), `Iterations` (0–4) and `Radius` (0–8) configure the provider. Window crops follow screen coordinates, scaling and camera viewport, with GUI/texture Y conversion. GPU resources are recreated on resize/camera changes, released when idle or disabled, and disposed with the host. Missing/unsupported shaders, a window outside the scene viewport or an unavailable camera fall back to the regular themed background. `BlurTintAlpha` multiplies the window tint only while a blurred image is available. Rendering of window content remains sharp.
+
+### Drag state and host camera input
+
+`window.isDragging` and `window.IsDragging` are read-only aliases for the same captured header-drag gesture. They become true when the left mouse button captures the header and return false on left release, closing, an ignored input event, disabling `Draggable`, or detecting a release outside the GUI. Releasing another mouse button does not cancel a left-button drag. The flag is independent of the DragAlpha fade; it does not stay true while opacity returns to normal.
+
+`window.IsDragHandleAtScreenPoint(point)` tests the last drawn header in physical screen pixels, using the bottom-left origin of Unity `Input.mousePosition`. It accounts for GUI/window scaling and excludes the close button. This lets a host exclude the initial press from a polling-based camera before OnGUI starts the gesture; use `isDragging` to keep camera input blocked throughout the gesture. Querying these values does not create new windows.
+
+### BCL and the Example plugin
+
+BCL applies a blurred backdrop and a lighter background tint to About, Server Connection, player profile, updater, VinylPort and its confirmation window. The performance overlay also uses the shared backdrop. PointTool explicitly disables blur. If the capture provider is unavailable, each keeps its regular background.
+
+The Example plugin has a soft dependency on BCL. When present, it discovers BCL's `ILegacyUIBackdrop` component and shares the same capture texture, without referencing the BCL or Blur DLL at compile time. Without BCL it remains a standalone framework example. This optional integration is also safe in the net35 example, where no compatible provider is normally present.
+
+### Blur diagnostics
+
+BCL enables blur diagnostics by default. Messages use `[BCL Blur]` and are written to `BepInEx/LogOutput.log` at Info level. The setting is in `BepInEx/config/com.bigcitylegacy.baseplugin.cfg`:
+
+```ini
+[UI]
+BlurDiagnostics = true
+```
+
+Startup records the actual loaded framework/module paths and versions, diagnostic revision, game/Unity version and graphics backend. Further records identify the window/GUI event, missing provider, disabled window, camera selection and rendering eligibility, shader source/support/pass count, texture sizes, image-effect callbacks, viewport rejection and successful draws. A five-second health summary connects window repaint counts, draw requests, camera pre-render callbacks, received image callbacks and completed captures. In particular, `repaint-consumed-before-backdrop` distinguishes a Repaint event consumed before the background from an ordinary Layout pass.
+
+Repeated identical states are suppressed; state changes are throttled per stage. The module does not read back pixels or save screenshots for diagnostics. Set `BlurDiagnostics = false` to disable these records. Other hosts may use `LegacyBclBlur.Create(host, logCallback, diagnosticsEnabled)`, `DiagnosticsEnabled` and `DiagnosticLog`. The framework itself only forwards optional `LegacyUIBackdropDiagnosticInfo` records to providers implementing `ILegacyUIBackdropDiagnostics`; it has no mandatory logger dependency.
+
+To collect a report, keep the log from application startup, open About or VinylPort and leave it visible for 10–15 seconds before copying the log. The records describe the pipeline without changing blur settings or choosing a different camera automatically.
+
+### HintBoxAlt visual options
+
+`LegacyUIHintBox` provides persistent Visible/IsRendered/Opacity/Rect/Options state. LegacyUIHintBoxOptions exposes Theme, Animations (null inherits scoped/global settings), Backdrop, BackdropBlur, BlurTintAlpha, BackgroundAlpha, BackgroundColor, ScaleMultiplier, Padding, DrawBorder and InputBlockMode. Default color comes from the theme's HintBackgroundAlt. Blur uses implicit alpha 1; explicit BackgroundAlpha or a custom BackgroundColor alpha overrides it. BlurTintAlpha applies only after a successful backdrop draw. Content stays sharp; real-time fade affects the whole block. GUI color, enabled state, theme and scale are restored.
+
+Existing `LegacyUI.HintBoxAlt(rect, text)` gains fade-in and the available backdrop. `LegacyUI.StyledHintBoxAlt(rect, text, options)` supplies explicit options. For fade-out, retain an instance and continue Draw after Visible=false until IsRendered=false. A static immediate call cannot fade out after calls stop. Account for ScaleMultiplier when positioning relative to virtual screen size. The core hint implementation also builds for net35; the blur module remains optional.
+
+```csharp
+var hint = new LegacyUIHintBox(new Rect(20, 20, 400, 90), new LegacyUIHintBoxOptions
+{
+    BackdropBlur = true,
+    BlurTintAlpha = 0.75f,
+    BackgroundAlpha = 1f,
+    BackgroundColor = new Color(0.03f, 0.03f, 0.04f, 1f),
+    ScaleMultiplier = 1.5f,
+    Animations = new LegacyUIAnimationSettings { WindowDuration = 0.2f }
+});
+// In OnGUI, also after setting Visible = false:
+if (hint.IsRendered) hint.Draw("Text");
+// A callback allows custom content inside the padding:
+hint.Draw("", area => LegacyUI.Label(area, "Custom content"));
+```
