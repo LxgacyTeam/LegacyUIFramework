@@ -8,6 +8,23 @@ namespace BigCityLegacy.UI
     /// </summary>
     public sealed class LegacyUIWindow
     {
+        private static readonly System.Collections.Generic.List<WeakReference> drawnWindows = new System.Collections.Generic.List<WeakReference>();
+        private int lastDrawFrame = -100;
+        /// <summary>True while any recently drawn framework window is open or fading out.</summary>
+        public static bool AnyWindowOpen
+        {
+            get
+            {
+                bool open = false;
+                for (int i = drawnWindows.Count - 1; i >= 0; i--)
+                {
+                    var window = drawnWindows[i].Target as LegacyUIWindow;
+                    if (window == null) { drawnWindows.RemoveAt(i); continue; }
+                    if (Time.frameCount - window.lastDrawFrame <= 2 && window.IsRendered) open = true;
+                }
+                return open;
+            }
+        }
         private Rect rect;
         private Vector2 dragOffset;
         private bool dragging;
@@ -127,8 +144,12 @@ namespace BigCityLegacy.UI
             UpdateOpacity();
             if (!IsRendered)
             { dragHandleKnown = false; LegacyUIInputBlocker.ClearWindow(inputBlockOwnerId); return; }
+            if (lastDrawFrame == -100) drawnWindows.Add(new WeakReference(this));
+            lastDrawFrame = Time.frameCount;
             FixRect();
             if (Visible) HandleDragAndClose();
+            if (lastDrawFrame == -100) drawnWindows.Add(new WeakReference(this));
+            lastDrawFrame = Time.frameCount;
             FixRect();
             dragHandleKnown = Visible && Options.Draggable && GUI.enabled;
             if (dragHandleKnown) physicalDragHandle = LegacyUI.ToPhysicalRect(GetDragHandleRect());
@@ -271,7 +292,9 @@ namespace BigCityLegacy.UI
             else if (cur.type == EventType.MouseDrag && dragging)
             {
                 rect.position = LegacyUI.MousePosition - dragOffset;
-                FixRect();
+                if (lastDrawFrame == -100) drawnWindows.Add(new WeakReference(this));
+            lastDrawFrame = Time.frameCount;
+            FixRect();
                 cur.Use();
             }
             else if (cur.type == EventType.MouseUp && cur.button == 0 && dragging)
