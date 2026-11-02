@@ -712,21 +712,6 @@ BCL 的 About、Server Connection、玩家档案、更新器、VinylPort 及其�
 
 Example 插件对 BCL 使用软依赖。检测到 BCL 时，从其对象获取 `ILegacyUIBackdrop` 组件，共享同一个捕获纹理，无需在编译时直接引用 BCL 或 Blur DLL。没有 BCL 时仍可独立运行。net35 示例也保留此可选集成，但通常不存在兼容的提供者。
 
-### 模糊诊断
-
-BCL 默认启用模糊诊断。消息前缀为 `[BCL Blur]`，以 Info 级别写入 `BepInEx/LogOutput.log`。配置位于 `BepInEx/config/com.bigcitylegacy.baseplugin.cfg`：
-
-```ini
-[UI]
-BlurDiagnostics = true
-```
-
-启动记录包含实际加载的框架/模块 DLL 路径与版本、诊断修订号、游戏/Unity 版本及图形后端。后续记录显示窗口及 GUI 事件、提供者缺失、窗口禁用模糊、相机选择及渲染条件、着色器来源/支持状态/pass 数量、纹理尺寸、image effect 回调、viewport 越界和绘制成功状态。每五秒的摘要关联窗口 Repaint、背景请求、相机 pre-render、image 回调及完成的捕获数量。`repaint-consumed-before-backdrop` 专门表示 Repaint 在背景绘制前已被消费，而不是普通 Layout。
-
-相同状态不会逐帧重复，状态变更也按阶段限流。诊断不会读取 GPU 像素或保存截图。设置 `BlurDiagnostics = false` 可关闭这些记录。其他宿主可使用 `LegacyBclBlur.Create(host, logCallback, diagnosticsEnabled)`、`DiagnosticsEnabled` 和 `DiagnosticLog`。基础库仅向实现 `ILegacyUIBackdropDiagnostics` 的提供者发送可选的 `LegacyUIBackdropDiagnosticInfo`，无需依赖特定日志系统。
-
-收集报告时，保留从程序启动开始的日志，打开 About 或 VinylPort 并保持可见 10–15 秒后再复制日志。记录不会修改模糊设置或自动切换相机。
-
 ### HintBoxAlt 视觉选项
 
 `LegacyUIHintBox` 提供持续保存的 Visible、IsRendered、Opacity、Rect、Options 状态。LegacyUIHintBoxOptions 包含 Theme、Animations（null 继承作用域/全局）、Backdrop、BackdropBlur、BlurTintAlpha、BackgroundAlpha、BackgroundColor、ScaleMultiplier、Padding、DrawBorder、InputBlockMode。默认颜色来自主题 HintBackgroundAlt；启用模糊时隐式 alpha 为 1，显式 BackgroundAlpha 或自定义 BackgroundColor 的 alpha 优先。BlurTintAlpha 仅在成功绘制模糊时作用于背景。内容保持清晰，fade 使用真实时间作用于整体，绘制后恢复 GUI 颜色、启用状态、主题与缩放。

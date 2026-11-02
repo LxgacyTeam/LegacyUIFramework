@@ -719,21 +719,6 @@ window.Options.BlurTintAlpha = 0.75f;
 
 Example-плагин имеет мягкую зависимость от BCL. При его наличии он получает компонент `ILegacyUIBackdrop` с объекта BCL и использует ту же текстуру захвата, без жёсткой зависимости от DLL BCL или Blur при сборке. Без BCL пример остаётся самостоятельным. В net35-примере эта интеграция также необязательна; совместимый провайдер там обычно отсутствует.
 
-### Диагностика блюра
-
-В BCL диагностика блюра включена по умолчанию. Сообщения имеют префикс `[BCL Blur]` и попадают в `BepInEx/LogOutput.log` с уровнем Info. Настройка находится в `BepInEx/config/com.bigcitylegacy.baseplugin.cfg`:
-
-```ini
-[UI]
-BlurDiagnostics = true
-```
-
-При запуске записываются реальные пути и версии загруженных DLL библиотеки/модуля, ревизия диагностики, версии игры/Unity и графический API. Далее видны окно и GUI-событие, отсутствие провайдера или отключение блюра у окна, выбор камеры и её пригодность для рендера, источник/поддержка/число проходов шейдера, размеры текстур, вызовы image effect, выход за viewport и успешная отрисовка. Сводка раз в пять секунд сопоставляет Repaint окон, запросы фона, pre-render камеры, полученные image callbacks и завершённые захваты. Состояние `repaint-consumed-before-backdrop` отличает Repaint, поглощённый до фона, от обычного Layout-прохода.
-
-Одинаковые состояния не повторяются каждый кадр; частота смены состояний ограничена по этапам. Диагностика не считывает пиксели с GPU и не сохраняет скриншоты. `BlurDiagnostics = false` отключает эти записи. Другой хост может использовать `LegacyBclBlur.Create(host, logCallback, diagnosticsEnabled)`, `DiagnosticsEnabled` и `DiagnosticLog`. Основная библиотека только передаёт `LegacyUIBackdropDiagnosticInfo` провайдерам с интерфейсом `ILegacyUIBackdropDiagnostics` и не зависит от конкретного логгера.
-
-Для отчёта сохраните лог с начала запуска, откройте About или VinylPort и оставьте окно видимым на 10–15 секунд перед копированием лога. Записи описывают конвейер, не меняя настройки блюра и не выбирая другую камеру автоматически.
-
 ### Визуальные настройки HintBoxAlt
 
 `LegacyUIHintBox` — состояние HintBoxAlt с `Visible`, `IsRendered`, `Opacity`, `Rect` и `Options`. Настройки `LegacyUIHintBoxOptions`: Theme, Animations (null наследует глобальные/scoped), Backdrop, BackdropBlur, BlurTintAlpha, BackgroundAlpha, BackgroundColor, ScaleMultiplier, Padding, DrawBorder и InputBlockMode. Цвет по умолчанию берётся из HintBackgroundAlt текущей темы. При включённом блюре неявная прозрачность фона равна 1; явно заданный BackgroundAlpha либо alpha собственного BackgroundColor имеет приоритет. BlurTintAlpha умножает фон только при успешном блюре. Контент остаётся чётким, а fade действует на весь блок по реальному времени. Draw восстанавливает GUI.color, GUI.enabled, тему и масштаб.

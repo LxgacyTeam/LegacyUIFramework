@@ -52,13 +52,6 @@ namespace BigCityLegacy.UI
                     GUI.color = new Color(before.r * background.r, before.g * background.g, before.b * background.b, before.a * opacity * background.a);
                     GUI.DrawTexture(Rect, Texture2D.whiteTexture);
                     GUI.color = new Color(before.r, before.g, before.b, before.a * opacity);
-                    var diagnostic = provider as ILegacyUIBackdropDiagnostics;
-                    if (diagnostic != null) diagnostic.ReportWindow(new LegacyUIBackdropDiagnosticInfo {
-                        Title = "HintBoxAlt", Rect = Rect, Requested = Options.BackdropBlur, Drawn = drawn,
-                        EntryEvent = Event.current != null ? Event.current.type : EventType.Ignore,
-                        CurrentEvent = Event.current != null ? Event.current.type : EventType.Ignore,
-                        RawEvent = Event.current != null ? Event.current.rawType : EventType.Ignore,
-                        BackgroundAlpha = background.a, TintMultiplier = Options.BlurTintAlpha, Opacity = GUI.color.a });
                     if (!string.IsNullOrEmpty(text))
                     {
                         // A label with the original HintAlt style would paint its background

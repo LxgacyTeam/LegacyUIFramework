@@ -135,9 +135,6 @@ namespace BigCityLegacy.UI
 
         private void DrawInternal(Action<Rect> drawContent)
         {
-            Event entry = Event.current;
-            EventType entryEvent = entry != null ? entry.type : EventType.Ignore;
-            EventType rawEvent = entry != null ? entry.rawType : EventType.Ignore;
             LegacyUI.EnsureInitialized();
             lastAnimations = LegacyUI.CurrentAnimations;
             LoadPrefsOnce();
@@ -165,21 +162,11 @@ namespace BigCityLegacy.UI
                 GUI.color = new Color(oldColor.r, oldColor.g, oldColor.b, oldColor.a * opacity * drag);
                 GUI.enabled = oldEnabled && Visible;
                 ILegacyUIBackdrop backdrop = Options.Backdrop ?? LegacyUI.ActiveBackdrop;
-                EventType backdropEvent = Event.current != null ? Event.current.type : EventType.Ignore;
                 bool blurred = Event.current != null && Event.current.type == EventType.Repaint &&
                     Options.BackdropBlur && backdrop != null && backdrop.Draw(rect);
                 float? alpha = Options.BackgroundAlpha;
                 if (!alpha.HasValue && Options.BackdropBlur) alpha = 1f;
                 if (blurred) alpha = (alpha ?? LegacyUI.Palette.WindowBackground.a) * Mathf.Clamp01(Options.BlurTintAlpha);
-                ILegacyUIBackdropDiagnostics diagnostic = backdrop as ILegacyUIBackdropDiagnostics;
-                if (diagnostic != null)
-                    diagnostic.ReportWindow(new LegacyUIBackdropDiagnosticInfo
-                    {
-                        Title = Title, Rect = rect, EntryEvent = entryEvent, CurrentEvent = backdropEvent,
-                        RawEvent = rawEvent, Requested = Options.BackdropBlur, Drawn = blurred,
-                        BackgroundAlpha = alpha ?? LegacyUI.Palette.WindowBackground.a,
-                        TintMultiplier = Options.BlurTintAlpha, Opacity = GUI.color.a
-                    });
                 LegacyUI.Panel(rect, alpha);
                 if (DrawHeader()) GUI.enabled = false;
                 Rect content = new Rect(rect.x + 15f, rect.y + Options.HeaderHeight + 12f,

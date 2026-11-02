@@ -717,21 +717,6 @@ BCL applies a blurred backdrop and a lighter background tint to About, Server Co
 
 The Example plugin has a soft dependency on BCL. When present, it discovers BCL's `ILegacyUIBackdrop` component and shares the same capture texture, without referencing the BCL or Blur DLL at compile time. Without BCL it remains a standalone framework example. This optional integration is also safe in the net35 example, where no compatible provider is normally present.
 
-### Blur diagnostics
-
-BCL enables blur diagnostics by default. Messages use `[BCL Blur]` and are written to `BepInEx/LogOutput.log` at Info level. The setting is in `BepInEx/config/com.bigcitylegacy.baseplugin.cfg`:
-
-```ini
-[UI]
-BlurDiagnostics = true
-```
-
-Startup records the actual loaded framework/module paths and versions, diagnostic revision, game/Unity version and graphics backend. Further records identify the window/GUI event, missing provider, disabled window, camera selection and rendering eligibility, shader source/support/pass count, texture sizes, image-effect callbacks, viewport rejection and successful draws. A five-second health summary connects window repaint counts, draw requests, camera pre-render callbacks, received image callbacks and completed captures. In particular, `repaint-consumed-before-backdrop` distinguishes a Repaint event consumed before the background from an ordinary Layout pass.
-
-Repeated identical states are suppressed; state changes are throttled per stage. The module does not read back pixels or save screenshots for diagnostics. Set `BlurDiagnostics = false` to disable these records. Other hosts may use `LegacyBclBlur.Create(host, logCallback, diagnosticsEnabled)`, `DiagnosticsEnabled` and `DiagnosticLog`. The framework itself only forwards optional `LegacyUIBackdropDiagnosticInfo` records to providers implementing `ILegacyUIBackdropDiagnostics`; it has no mandatory logger dependency.
-
-To collect a report, keep the log from application startup, open About or VinylPort and leave it visible for 10–15 seconds before copying the log. The records describe the pipeline without changing blur settings or choosing a different camera automatically.
-
 ### HintBoxAlt visual options
 
 `LegacyUIHintBox` provides persistent Visible/IsRendered/Opacity/Rect/Options state. LegacyUIHintBoxOptions exposes Theme, Animations (null inherits scoped/global settings), Backdrop, BackdropBlur, BlurTintAlpha, BackgroundAlpha, BackgroundColor, ScaleMultiplier, Padding, DrawBorder and InputBlockMode. Default color comes from the theme's HintBackgroundAlt. Blur uses implicit alpha 1; explicit BackgroundAlpha or a custom BackgroundColor alpha overrides it. BlurTintAlpha applies only after a successful backdrop draw. Content stays sharp; real-time fade affects the whole block. GUI color, enabled state, theme and scale are restored.
